@@ -1,6 +1,12 @@
-"""L1 regression: real adapters win when modules are READY; mocks only on demand."""
+"""L1 regression: real adapters win when modules are READY; mocks only on demand.
+
+Live tests require the optional sibling package plus local fixture roots and
+skip otherwise (public CI has neither; the VPS/dev integration env has both).
+Mock/fallback/boundary tests always run.
+"""
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -12,6 +18,15 @@ from sklab_web.integrations import appsec_lab, contract_toolkit, protocol_intell
 from sklab_web.main import create_app
 
 FIXTURES = Path.home() / "sklab-integration" / "fixtures"
+
+
+def _live_or_skip(package: str, *roots: Path) -> None:
+    """Skip live tests unless the optional module and fixture roots exist."""
+    if importlib.util.find_spec(package) is None:
+        pytest.skip(f"optional module not installed: {package}")
+    for root in roots:
+        if not root.is_dir():
+            pytest.skip(f"fixture root missing: {root}")
 
 
 def _clear_mock_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -43,6 +58,7 @@ def make_mock_client() -> TestClient:
 
 
 def test_real_adapter_wins_contracts(monkeypatch: pytest.MonkeyPatch) -> None:
+    _live_or_skip("sklab_contract_toolkit", FIXTURES / "contracts")
     _clear_mock_env(monkeypatch)
     assert contract_toolkit.live_available() is True
     c = make_live_client()
@@ -60,6 +76,7 @@ def test_real_adapter_wins_contracts(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_real_adapter_wins_protocols(monkeypatch: pytest.MonkeyPatch) -> None:
+    _live_or_skip("sklab_protocol_intelligence", FIXTURES / "protocols")
     _clear_mock_env(monkeypatch)
     assert protocol_intelligence.live_available() is True
     c = make_live_client()
@@ -74,6 +91,7 @@ def test_real_adapter_wins_protocols(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_real_adapter_wins_security(monkeypatch: pytest.MonkeyPatch) -> None:
+    _live_or_skip("sklab_appsec_lab")
     _clear_mock_env(monkeypatch)
     assert appsec_lab.live_available() is True
     c = make_live_client()
@@ -141,6 +159,7 @@ def test_frontend_bundles_no_private_implementation() -> None:
 
 
 def test_public_build_without_private_roots(monkeypatch: pytest.MonkeyPatch) -> None:
+    _live_or_skip("sklab_contract_toolkit")
     _clear_mock_env(monkeypatch)
     monkeypatch.delenv("SKLAB_CONTRACTS_ROOT", raising=False)
     monkeypatch.delenv("SKLAB_PROTOCOLS_ROOT", raising=False)
