@@ -1,0 +1,27 @@
+schema_version: 1
+
+server:
+  host: 127.0.0.1
+  port: 8787
+
+repositories:
+  allowed_roots:
+    - /srv/sklab/repos
+    - /home/sklab/projects
+
+auth:
+  mode: token
+
+integrations:
+  orchestrator: auto
+  agent_adapters: auto
+  provider_connections: auto
+  reprobox: auto
+  patchbench: auto
+  benchsuite: auto
+  codetrials: auto
+  promptbench: auto
+  repo_context: auto
+
+ui:
+  title: SKLab Studio

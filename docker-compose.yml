@@ -1,0 +1,25 @@
+services:
+  api:
+    build: ./backend
+    environment:
+      SKLAB_MOCK_MODE: "${SKLAB_MOCK_MODE:-true}"
+      AUTH_MODE: "${AUTH_MODE:-token}"
+      SKLAB_AUTH_TOKEN: "${SKLAB_AUTH_TOKEN:-}"
+      SKLAB_ALLOWED_ROOTS: "${SKLAB_ALLOWED_ROOTS:-/srv/sklab/repos}"
+    ports:
+      - "8787:8787"
+    volumes:
+      - sklab-config:/config
+      - /srv/sklab/repos:/srv/sklab/repos:ro
+
+  web:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_BASE: ""
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  sklab-config:
