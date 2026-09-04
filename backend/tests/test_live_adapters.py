@@ -1,7 +1,6 @@
 """L1 regression: real adapters win when modules are READY; mocks only on demand."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
