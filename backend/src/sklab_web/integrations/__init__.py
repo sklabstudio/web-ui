@@ -18,7 +18,50 @@ def _mod_available(name: str) -> tuple[bool, str | None]:
         return False, None
 
 
+MODULE_CAPABILITIES = {
+    "security.appsec": "appsec_lab",
+    "contracts.toolkit": "contract_toolkit",
+    "protocols.intelligence": "protocol_intelligence",
+}
+
+
+def module_discovery(mock_mode: bool = False) -> list[dict[str, Any]]:
+    """Generic module capability registration (prefers static adapters,
+    migrates to SKLab CLI/registry when available)."""
+    from sklab_web.integrations import appsec_lab, contract_toolkit, protocol_intelligence
+
+    out = []
+    for cap, short in MODULE_CAPABILITIES.items():
+        if short == "appsec_lab":
+            s = appsec_lab.status(mock_mode)
+        elif short == "contract_toolkit":
+            s = contract_toolkit.status(mock_mode)
+        else:
+            s = protocol_intelligence.status(mock_mode)
+        out.append({"name": short, "capability": cap, **s})
+    return out
+
+
 def component_state(name: str, mock_mode: bool) -> dict[str, Any]:
+    # v0.2 private/public module adapters take precedence for their names.
+    if name in ("appsec_lab", "security"):
+        from sklab_web.integrations import appsec_lab
+
+        return appsec_lab.status(mock_mode)
+    if name in ("contract_toolkit", "contracts"):
+        from sklab_web.integrations import contract_toolkit
+
+        return contract_toolkit.status(mock_mode)
+    if name in ("protocol_intelligence", "protocols"):
+        from sklab_web.integrations import protocol_intelligence
+
+        return protocol_intelligence.status(mock_mode)
+    if name == "sklab_cli":
+        import shutil
+
+        if shutil.which("sklab"):
+            return {"state": "READY", "version": "cli", "detail": "sklab CLI detected"}
+        return {"state": "NOT_INSTALLED", "version": None, "detail": "sklab CLI not installed"}
     if mock_mode:
         mapping = {
             "orchestrator": ("DEGRADED", "mock-0.1.0", "mock mode: deterministic simulator"),

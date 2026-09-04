@@ -5,7 +5,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-ComponentState = Literal["READY", "DEGRADED", "UNAVAILABLE", "UNKNOWN"]
+ComponentState = Literal["READY", "DEGRADED", "UNAVAILABLE", "NOT_INSTALLED", "UNKNOWN"]
+ModuleState = Literal["READY", "DEGRADED", "UNAVAILABLE", "NOT_INSTALLED", "UNKNOWN"]
 ErrorCode = Literal[
     "AUTH_REQUIRED",
     "PROVIDER_UNAVAILABLE",
@@ -20,6 +21,20 @@ ErrorCode = Literal[
     "NOT_FOUND",
     "BAD_REQUEST",
     "FORBIDDEN",
+    "MODULE_NOT_INSTALLED",
+    "MODULE_UNAVAILABLE",
+    "PRIVATE_MODULE_UNAVAILABLE",
+    "BROWSER_UNAVAILABLE",
+    "ENGAGEMENT_NOT_FOUND",
+    "CONTRACT_TOOL_UNAVAILABLE",
+    "COMPILE_FAILED",
+    "TEST_FAILED",
+    "FUZZ_COUNTEREXAMPLE",
+    "INVARIANT_FAILED",
+    "UPGRADE_BLOCKED",
+    "ASSURANCE_STALE",
+    "MONITOR_DISCONNECTED",
+    "INCIDENT_DATA_INCOMPLETE",
 ]
 
 EVENT_TYPES = [
@@ -41,6 +56,27 @@ EVENT_TYPES = [
     "RUN_COMPLETED",
     "RUN_FAILED",
     "RUN_CANCELLED",
+    # v0.2 security
+    "SECURITY_SCAN_STARTED",
+    "BROWSER_FLOW_STARTED",
+    "API_DISCOVERED",
+    "FINDING_CREATED",
+    "SIMULATION_STARTED",
+    "SIMULATION_COMPLETED",
+    # v0.2 contracts
+    "CONTRACT_COMPILE_STARTED",
+    "CONTRACT_TEST_STARTED",
+    "FUZZ_STARTED",
+    "INVARIANT_RESULT",
+    "UPGRADE_REVIEW_COMPLETED",
+    # v0.2 protocols
+    "PROTOCOL_MAP_READY",
+    "SPEC_DERIVED",
+    "INVARIANT_DERIVED",
+    "ECONOMIC_SIM_STARTED",
+    "ASSURANCE_UPDATED",
+    "MONITOR_ALERT",
+    "INCIDENT_RECONSTRUCTED",
 ]
 
 
@@ -53,15 +89,19 @@ class ApiError(BaseModel):
 class HealthResponse(BaseModel):
     ok: bool = True
     mock_mode: bool = False
-    version: str = "0.1.0"
+    version: str = "0.2.0"
 
 
 class VersionResponse(BaseModel):
-    web_ui: str = "0.1.0"
-    api_schema: int = 1
+    web_ui: str = "0.2.0"
+    api_schema: int = 2
     orchestrator: str | None = None
     agent_adapters: str | None = None
     provider_connections: str | None = None
+    appsec_lab: str | None = None
+    contract_toolkit: str | None = None
+    protocol_intelligence: str | None = None
+    sklab_cli: str | None = None
 
 
 class ComponentStatus(BaseModel):
@@ -70,8 +110,17 @@ class ComponentStatus(BaseModel):
     detail: str = ""
 
 
+class ModuleStatus(BaseModel):
+    name: str = ""
+    capability: str = ""
+    state: ModuleState = "UNKNOWN"
+    version: str | None = None
+    detail: str = ""
+    mock: bool = False
+
+
 class SystemResponse(BaseModel):
-    web_ui: ComponentStatus = ComponentStatus(state="READY", version="0.1.0")
+    web_ui: ComponentStatus = ComponentStatus(state="READY", version="0.2.0")
     orchestrator: ComponentStatus = ComponentStatus()
     agent_adapters: ComponentStatus = ComponentStatus()
     provider_connections: ComponentStatus = ComponentStatus()
@@ -81,6 +130,10 @@ class SystemResponse(BaseModel):
     benchsuite: ComponentStatus = ComponentStatus()
     codetrials: ComponentStatus = ComponentStatus()
     promptbench: ComponentStatus = ComponentStatus()
+    appsec_lab: ComponentStatus = ComponentStatus()
+    contract_toolkit: ComponentStatus = ComponentStatus()
+    protocol_intelligence: ComponentStatus = ComponentStatus()
+    sklab_cli: ComponentStatus = ComponentStatus()
 
 
 class RepoSummary(BaseModel):
@@ -308,3 +361,141 @@ class AuditEntry(BaseModel):
     ts: str
     action: str
     detail: str = ""
+
+
+# ---------------- v0.2: shared + Security / Contracts / Protocols ----------------
+
+FindingStatus = Literal[
+    "OPEN", "CONFIRMED", "LIKELY", "NEEDS_REVIEW", "FIXED",
+    "FIXED_VERIFIED", "ACCEPTED_RISK", "FALSE_POSITIVE", "INCONCLUSIVE",
+]
+ImpactLevel = Literal["NONE", "LOW", "MEDIUM", "HIGH", "UNKNOWN"]
+AssuranceState = Literal["VERIFIED", "PARTIAL", "FAILED", "INCONCLUSIVE", "NOT_TESTED", "NOT_APPLICABLE"]
+
+
+class FindingModel(BaseModel):
+    id: str
+    source: str = "unknown"
+    severity: str = "MEDIUM"
+    confidence: str = "MEDIUM"
+    title: str = ""
+    endpoint: str | None = None
+    flow: str | None = None
+    contract: str | None = None
+    function: str | None = None
+    status: str = "OPEN"
+    evidence_ref: str | None = None
+    retest_status: str | None = None
+    description: str = ""
+    remediation: str = ""
+    impact: dict[str, str] = Field(default_factory=dict)
+
+
+class ReportRef(BaseModel):
+    id: str
+    kind: str = "markdown"
+    title: str = ""
+    created_at: str = ""
+    artifact_id: str = ""
+
+
+class SecurityEngagement(BaseModel):
+    id: str
+    name: str = ""
+    status: str = "ACTIVE"
+    scope_summary: str = ""
+    created_at: str = ""
+    last_run: str | None = None
+    finding_count: int = 0
+    report_status: str = "NONE"
+
+
+class TrafficEntry(BaseModel):
+    ts: str = ""
+    method: str = "GET"
+    host: str = ""
+    path: str = ""
+    status: int = 200
+    kind: str = "REST"
+    auth: str = "none"
+    duration_ms: int = 0
+    flow: str = ""
+
+
+class ApiEndpoint(BaseModel):
+    host: str = ""
+    route: str = ""
+    method: str = "GET"
+    auth: str = "none"
+    roles: dict[str, int] = Field(default_factory=dict)
+
+
+class SimulationResult(BaseModel):
+    id: str
+    simulation: str = ""
+    target: str = ""
+    role: str = ""
+    result: str = "INCONCLUSIVE"
+    requests: int = 0
+    duration_ms: int = 0
+    impact: str = "UNKNOWN"
+    evidence_ref: str | None = None
+
+
+class ContractProject(BaseModel):
+    id: str
+    name: str = ""
+    chain: str = "ethereum"
+    toolchain: str = "foundry"
+    compiler: str | None = None
+    contracts: int = 0
+    standards: list[str] = Field(default_factory=list)
+    authorities: list[str] = Field(default_factory=list)
+    last_build: str | None = None
+    last_analysis: str | None = None
+    status: str = "UNKNOWN"
+
+
+class ContractSummary(BaseModel):
+    id: str
+    name: str = ""
+    source: str = ""
+    kind: str = "contract"
+    standard: str | None = None
+    upgradeability: str = "UNKNOWN"
+    authorities: list[str] = Field(default_factory=list)
+    functions: int = 0
+
+
+class ToolStatus(BaseModel):
+    id: str
+    installed: bool = False
+    version: str | None = None
+    status: str = "UNKNOWN"
+    capabilities: list[str] = Field(default_factory=list)
+
+
+class ProtocolSummary(BaseModel):
+    id: str
+    chain: str = "ethereum"
+    source_summary: str = ""
+    assurance_freshness: str = "UNKNOWN"
+    open_findings: int = 0
+    critical_authorities: int = 0
+    monitored: bool = False
+    latest_upgrade: str | None = None
+    active_alerts: int = 0
+
+
+class AssuranceItem(BaseModel):
+    check: str = ""
+    state: str = "NOT_TESTED"
+    detail: str = ""
+
+
+class MonitorAlert(BaseModel):
+    id: str
+    kind: str = ""
+    severity: str = "MEDIUM"
+    message: str = ""
+    ts: str = ""

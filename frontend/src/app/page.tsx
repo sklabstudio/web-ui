@@ -5,8 +5,11 @@ import { api } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export default function Dashboard() {
-  const [system, setSystem] = useState<Record<string, { state: string }> | null>(null);
+  const [system, setSystem] = useState<Record<string, { state: string; detail?: string }> | null>(null);
   const [runs, setRuns] = useState<Array<Record<string, unknown>>>([]);
+  const [sec, setSec] = useState<Record<string, unknown> | null>(null);
+  const [con, setCon] = useState<Record<string, unknown> | null>(null);
+  const [pro, setPro] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -16,6 +19,9 @@ export default function Dashboard() {
     api<Array<Record<string, unknown>>>("/api/runs")
       .then(setRuns)
       .catch(() => {});
+    api<Record<string, unknown>>("/api/security/status").then(setSec).catch(() => setSec(null));
+    api<Record<string, unknown>>("/api/contracts/status").then(setCon).catch(() => setCon(null));
+    api<Record<string, unknown>>("/api/protocols/status").then(setPro).catch(() => setPro(null));
   }, []);
 
   const active = runs.filter((r) =>
@@ -64,6 +70,57 @@ export default function Dashboard() {
         <div className="rounded border border-zinc-800 p-4">
           <div className="text-xs text-zinc-500">Recent runs</div>
           <div className="text-2xl font-bold">{runs.length}</div>
+        </div>
+      </section>
+
+      <section aria-label="Module summaries" className="grid gap-4 md:grid-cols-3">
+        <div className="rounded border border-zinc-800 p-4" data-testid="dash-security">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">Security</h2>
+            {sec ? <StatusBadge status={String((sec as Record<string, unknown>).state || "UNKNOWN")} /> : null}
+          </div>
+          {!sec ? (
+            <p className="mt-2 text-sm text-zinc-500">Not installed</p>
+          ) : (
+            <ul className="mt-2 text-sm text-zinc-300">
+              <li>Open findings: <span className="mono">{String(sec.open_findings ?? "—")}</span></li>
+              <li>Endpoints: <span className="mono">{String(sec.api_endpoints ?? "—")}</span></li>
+              <li>Latest report: <span className="mono">{String(sec.latest_report ?? "—")}</span></li>
+            </ul>
+          )}
+          <Link href="/security" className="mt-2 inline-block text-sm text-cyan-300 underline">Open Security</Link>
+        </div>
+        <div className="rounded border border-zinc-800 p-4" data-testid="dash-contracts">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">Contracts</h2>
+            {con ? <StatusBadge status={String((con as Record<string, unknown>).state || "UNKNOWN")} /> : null}
+          </div>
+          {!con ? (
+            <p className="mt-2 text-sm text-zinc-500">Not installed</p>
+          ) : (
+            <ul className="mt-2 text-sm text-zinc-300">
+              <li>Projects: <span className="mono">{String(con.projects ?? "—")}</span></li>
+              <li>Open findings: <span className="mono">{String(con.open_findings ?? "—")}</span></li>
+              <li>Upgrade: <span className="mono">{String(con.latest_upgrade ?? "—")}</span></li>
+            </ul>
+          )}
+          <Link href="/contracts" className="mt-2 inline-block text-sm text-cyan-300 underline">Open Contracts</Link>
+        </div>
+        <div className="rounded border border-zinc-800 p-4" data-testid="dash-protocols">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">Protocols</h2>
+            {pro ? <StatusBadge status={String((pro as Record<string, unknown>).state || "UNKNOWN")} /> : null}
+          </div>
+          {!pro ? (
+            <p className="mt-2 text-sm text-zinc-500">Not installed</p>
+          ) : (
+            <ul className="mt-2 text-sm text-zinc-300">
+              <li>Monitored: <span className="mono">{String(pro.protocols ?? "—")}</span></li>
+              <li>Stale: <span className="mono">{String(pro.stale ?? "—")}</span></li>
+              <li>Alerts: <span className="mono">{String(pro.alerts ?? "—")}</span></li>
+            </ul>
+          )}
+          <Link href="/protocols" className="mt-2 inline-block text-sm text-cyan-300 underline">Open Protocols</Link>
         </div>
       </section>
 

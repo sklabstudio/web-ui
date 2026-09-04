@@ -8,11 +8,13 @@ const LINKS = [
   ["Runs", "/runs"],
   ["Agents", "/agents"],
   ["Providers", "/providers"],
+  ["Skills", "/skills"],
+  ["Environments", "/environments"],
+  ["Security", "/security"],
+  ["Contracts", "/contracts"],
+  ["Protocols", "/protocols"],
   ["Benchmarks", "/benchmarks"],
   ["Prompt Experiments", "/prompt-experiments"],
-  ["Environments", "/environments"],
-  ["Skills", "/skills"],
-  ["CodeTrials", "/codetrials"],
   ["Settings", "/settings"],
 ];
 
@@ -30,14 +32,9 @@ export function Nav() {
             </Link>
           </li>
         ))}
-        <li aria-disabled="true" title="Future">
+        <li aria-disabled="true" title="Legacy packs">
           <span className="rounded border border-dashed border-zinc-800 px-2 py-1 text-zinc-600">
-            Cyber (soon)
-          </span>
-        </li>
-        <li aria-disabled="true" title="Future">
-          <span className="rounded border border-dashed border-zinc-800 px-2 py-1 text-zinc-600">
-            Contracts (soon)
+            CodeTrials
           </span>
         </li>
       </ul>

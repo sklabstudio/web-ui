@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.0
+
+Implemented (public integration foundation; live private wiring is optional):
+
+- Module capability layer (`security.appsec`, `contracts.toolkit`,
+  `protocols.intelligence`) with READY/DEGRADED/UNAVAILABLE/NOT_INSTALLED/
+  UNKNOWN — never fake READY; `/api/modules`, extended `/api/system`,
+  `/api/version` (schema 2)
+- Security section: overview/engagements/browser/live-traffic (redacted)/
+  API map + role matrix/findings/simulations/impact/remediation/reports
+- Contracts section: overview/projects/inventory/tools/analysis/tests/fuzz/
+  invariants/authorities/standards/upgrade-review/gas/reports
+- Protocols section: overview/map/asset-flows/authorities/dependencies/
+  specs/invariants/threat/evidence/economic-twin (SIMULATION ONLY)/upgrade/
+  guard/monitor/incidents/assurance + freshness
+- Shared FindingCard/ReportViewer/GraphView/ModuleStatusCard + extended
+  event model + normalized v0.2 error codes
+- Mock scenarios SKLAB_MOCK_{SECURITY,CONTRACTS,PROTOCOLS} (synthetic only)
+- Tests: frontend 15, backend 23, E2E security/contracts/protocols, plus
+  boundary/secret/XSS/artifact-scope; production build verified
+
 ## 0.1.0
 
 Implemented:

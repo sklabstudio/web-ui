@@ -24,7 +24,10 @@ from sklab_web.auth import (
     verify_password,
 )
 from sklab_web.config import AppConfig, load_config
-from sklab_web.integrations import component_state
+from sklab_web.integrations import appsec_lab as _appsec
+from sklab_web.integrations import component_state, module_discovery
+from sklab_web.integrations import contract_toolkit as _contracts
+from sklab_web.integrations import protocol_intelligence as _protocols
 from sklab_web.integrations.orchestrator import build_plan_via_orchestrator
 from sklab_web.mock import MockStore
 from sklab_web.models import (
@@ -103,16 +106,25 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         orch = component_state("orchestrator", config.mock_mode)
         aa = component_state("agent_adapters", config.mock_mode)
         pc = component_state("provider_connections", config.mock_mode)
+        ap = _appsec.status(config.mock_mode or config.mock_security)
+        ct = _contracts.status(config.mock_mode or config.mock_contracts)
+        pi = _protocols.status(config.mock_mode or config.mock_protocols)
         return VersionResponse(web_ui=__version__, api_schema=SCHEMA_VERSION,
                                orchestrator=orch.get("version"),
                                agent_adapters=aa.get("version"),
-                               provider_connections=pc.get("version"))
+                               provider_connections=pc.get("version"),
+                               appsec_lab=ap.get("version"),
+                               contract_toolkit=ct.get("version"),
+                               protocol_intelligence=pi.get("version"))
 
     @app.get("/api/system", response_model=SystemResponse)
     def system(request: Request) -> SystemResponse:
         guard(request)
         def c(name: str):  # type: ignore[no-untyped-def]
             s = component_state(name, config.mock_mode)
+            return {"state": s["state"], "version": s.get("version"), "detail": s.get("detail", "")}
+        def cm(name: str, mock_flag: bool):  # type: ignore[no-untyped-def]
+            s = component_state(name, config.mock_mode or mock_flag)
             return {"state": s["state"], "version": s.get("version"), "detail": s.get("detail", "")}
         return SystemResponse.model_validate({
             "web_ui": {"state": "READY", "version": __version__},
@@ -125,7 +137,16 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
             "benchsuite": c("benchsuite"),
             "codetrials": c("codetrials"),
             "promptbench": c("promptbench"),
+            "appsec_lab": cm("appsec_lab", config.mock_security),
+            "contract_toolkit": cm("contract_toolkit", config.mock_contracts),
+            "protocol_intelligence": cm("protocol_intelligence", config.mock_protocols),
+            "sklab_cli": c("sklab_cli"),
         })
+
+    @app.get("/api/modules")
+    def modules(request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        return module_discovery(config.mock_mode)
 
     # ---------- auth ----------
     @app.post("/api/auth/login")
@@ -411,15 +432,265 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         guard(request)
         if ".." in artifact_id or "/" in artifact_id or "\\" in artifact_id:
             raise _err(400, "BAD_REQUEST", "Invalid artifact id")
-        # scoped artifacts only
+        # scoped artifacts only (patch + safe report IDs; never arbitrary paths)
         if artifact_id.startswith("patch-"):
             return {"id": artifact_id, "kind": "patch", "content": "mock patch content"}
+        if artifact_id.startswith("artifact-rep-") or artifact_id.startswith("ev-"):
+            return {"id": artifact_id, "kind": "report", "content": "mock report summary (fixture)"}
         raise _err(404, "NOT_FOUND", "Artifact not found")
 
     @app.get("/api/audit")
     def get_audit(request: Request) -> list[dict[str, str]]:
         guard(request)
         return list(_audit)
+
+    # ---------- v0.2: Security (AppSec Lab, private-safe) ----------
+    def _require_security() -> dict[str, Any]:
+        st = _appsec.status(config.mock_mode or config.mock_security)
+        if st["state"] in ("NOT_INSTALLED", "UNAVAILABLE", "UNKNOWN") and not st.get("mock"):
+            raise _err(503, "PRIVATE_MODULE_UNAVAILABLE",
+                        "AppSec Lab is not installed. Showing status only.")
+        return st
+
+    @app.get("/api/security/status")
+    def security_status(request: Request) -> dict[str, Any]:
+        guard(request)
+        st = _appsec.status(config.mock_mode or config.mock_security)
+        out = {"module": "security.appsec", **st}
+        if st.get("mock") or st["state"] == "READY":
+            out.update(_store.security_overview())
+        return _appsec.redacted(out)
+
+    @app.get("/api/security/engagements")
+    def security_engagements(request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_security()
+        return [_appsec.redacted(e) for e in _store.security_engagements()]
+
+    @app.get("/api/security/engagements/{eng_id}")
+    def security_engagement(eng_id: str, request: Request) -> dict[str, Any]:
+        guard(request)
+        _require_security()
+        for e in _store.security_engagements():
+            if e["id"] == eng_id:
+                return _appsec.redacted(e)
+        raise _err(404, "ENGAGEMENT_NOT_FOUND", "Engagement not found")
+
+    @app.get("/api/security/engagements/{eng_id}/traffic")
+    def security_traffic(eng_id: str, request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_security()
+        if eng_id != "eng-demo":
+            raise _err(404, "ENGAGEMENT_NOT_FOUND", "Engagement not found")
+        return [_appsec.redacted(t) for t in _store.security_traffic()]
+
+    @app.get("/api/security/engagements/{eng_id}/api-map")
+    def security_api_map(eng_id: str, request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_security()
+        if eng_id != "eng-demo":
+            raise _err(404, "ENGAGEMENT_NOT_FOUND", "Engagement not found")
+        return _store.security_api_map()
+
+    @app.get("/api/security/findings")
+    def security_findings(request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_security()
+        return [_appsec.redacted(f) for f in _store.security_findings()]
+
+    @app.get("/api/security/findings/{fid}")
+    def security_finding(fid: str, request: Request) -> dict[str, Any]:
+        guard(request)
+        _require_security()
+        for f in _store.security_findings():
+            if f["id"] == fid:
+                return _appsec.redacted(f)
+        raise _err(404, "NOT_FOUND", "Finding not found")
+
+    @app.get("/api/security/simulations")
+    def security_simulations(request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_security()
+        return _store.security_simulations()
+
+    @app.get("/api/security/reports")
+    def security_reports(request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_security()
+        return _store.security_reports()
+
+    # ---------- v0.2: Contracts (public toolkit) ----------
+    def _require_contracts() -> dict[str, Any]:
+        st = _contracts.status(config.mock_mode or config.mock_contracts)
+        if st["state"] in ("NOT_INSTALLED", "UNAVAILABLE", "UNKNOWN") and not st.get("mock"):
+            raise _err(503, "MODULE_NOT_INSTALLED",
+                        "Contract Toolkit is not installed.")
+        return st
+
+    @app.get("/api/contracts/status")
+    def contracts_status(request: Request) -> dict[str, Any]:
+        guard(request)
+        st = _contracts.status(config.mock_mode or config.mock_contracts)
+        out: dict[str, Any] = {"module": "contracts.toolkit", **st}
+        if st.get("mock") or st["state"] == "READY":
+            projs = _store.contract_projects()
+            out.update({"projects": len(projs), "latest_analysis": "2026-09-01",
+                        "open_findings": len(_store.contract_findings()),
+                        "failing_tests": 1, "failing_invariants": 1,
+                        "latest_upgrade": "REVIEW_REQUIRED"})
+        return out
+
+    @app.get("/api/contracts/projects")
+    def contracts_projects(request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_contracts()
+        return _store.contract_projects()
+
+    @app.get("/api/contracts/projects/{pid}")
+    def contracts_project(pid: str, request: Request) -> dict[str, Any]:
+        guard(request)
+        _require_contracts()
+        for p in _store.contract_projects():
+            if p["id"] == pid:
+                detail = dict(p)
+                detail["inventory"] = _store.contract_inventory()
+                return detail
+        raise _err(404, "NOT_FOUND", "Contract project not found")
+
+    @app.post("/api/contracts/projects/{pid}/compile")
+    def contracts_compile(pid: str, request: Request) -> dict[str, Any]:
+        guard(request)
+        _require_contracts()
+        audit("contract compile", pid)
+        return {"project": pid, "ok": True, "compiler": "solc 0.8.24", "contracts": 3}
+
+    @app.post("/api/contracts/projects/{pid}/test")
+    def contracts_test(pid: str, request: Request) -> dict[str, Any]:
+        guard(request)
+        _require_contracts()
+        return {"project": pid, "total": 42, "passed": 41, "failed": 1, "skipped": 0,
+                "duration_seconds": 12, "failures": [{"test": "testMintZero", "log": "assertion failed"}]}
+
+    @app.post("/api/contracts/projects/{pid}/analyze")
+    def contracts_analyze(pid: str, request: Request) -> dict[str, Any]:
+        guard(request)
+        _require_contracts()
+        return {"project": pid, "findings": _store.contract_findings()}
+
+    @app.post("/api/contracts/projects/{pid}/fuzz")
+    def contracts_fuzz(pid: str, request: Request) -> dict[str, Any]:
+        guard(request)
+        _require_contracts()
+        return {"project": pid, "tool": "echidna", "seed": 42, "runs": 10000,
+                "failures": 1, "counterexample": "deposit(1e18) drifts 1 wei",
+                "duration_seconds": 90}
+
+    @app.post("/api/contracts/projects/{pid}/invariants")
+    def contracts_invariants(pid: str, request: Request) -> dict[str, Any]:
+        guard(request)
+        _require_contracts()
+        return {"project": pid, "invariants": [
+            {"property": "totalAssets >= totalSupply", "status": "FAILED", "runs": 10000,
+             "depth": 32, "counterexample": "seed 42", "assumptions": ["no fee"],
+             "source": "STANDARD_TEMPLATE"}]}
+
+    @app.get("/api/contracts/findings")
+    def contracts_findings(request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_contracts()
+        return _store.contract_findings()
+
+    @app.get("/api/contracts/tools")
+    def contracts_tools(request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_contracts()
+        return _store.contract_tools()
+
+    # ---------- v0.2: Protocols (private-safe) ----------
+    def _require_protocols() -> dict[str, Any]:
+        st = _protocols.status(config.mock_mode or config.mock_protocols)
+        if st["state"] in ("NOT_INSTALLED", "UNAVAILABLE", "UNKNOWN") and not st.get("mock"):
+            raise _err(503, "PRIVATE_MODULE_UNAVAILABLE",
+                        "Protocol Intelligence is not installed. Showing status only.")
+        return st
+
+    @app.get("/api/protocols/status")
+    def protocols_status(request: Request) -> dict[str, Any]:
+        guard(request)
+        st = _protocols.status(config.mock_mode or config.mock_protocols)
+        out2: dict[str, Any] = {"module": "protocols.intelligence", **st}
+        if st.get("mock") or st["state"] == "READY":
+            plist = _store.protocol_list()
+            out2.update({"protocols": len(plist), "stale": 1, "alerts": 1})
+        return out2
+
+    @app.get("/api/protocols")
+    def protocols_list(request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_protocols()
+        return _store.protocol_list()
+
+    @app.get("/api/protocols/{pid}")
+    def protocol_detail(pid: str, request: Request) -> dict[str, Any]:
+        guard(request)
+        _require_protocols()
+        if pid != "proto-demo":
+            raise _err(404, "NOT_FOUND", "Protocol not found")
+        return _store.protocol_detail(pid)
+
+    @app.get("/api/protocols/{pid}/map")
+    def protocol_map(pid: str, request: Request) -> dict[str, Any]:
+        guard(request)
+        _require_protocols()
+        return _store.protocol_detail(pid)["map"]
+
+    @app.get("/api/protocols/{pid}/assets")
+    def protocol_assets(pid: str, request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_protocols()
+        return _store.protocol_detail(pid)["assets"]
+
+    @app.get("/api/protocols/{pid}/authorities")
+    def protocol_authorities(pid: str, request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_protocols()
+        return _store.protocol_detail(pid)["authorities"]
+
+    @app.get("/api/protocols/{pid}/specs")
+    def protocol_specs(pid: str, request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_protocols()
+        return _store.protocol_detail(pid)["specs"]
+
+    @app.get("/api/protocols/{pid}/invariants")
+    def protocol_invariants(pid: str, request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_protocols()
+        return _store.protocol_detail(pid)["invariants"]
+
+    @app.get("/api/protocols/{pid}/evidence")
+    def protocol_evidence(pid: str, request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_protocols()
+        return _store.protocol_detail(pid)["evidence"]
+
+    @app.get("/api/protocols/{pid}/assurance")
+    def protocol_assurance(pid: str, request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_protocols()
+        return _store.protocol_detail(pid)["assurance"]
+
+    @app.get("/api/protocols/{pid}/monitor")
+    def protocol_monitor(pid: str, request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_protocols()
+        return _store.protocol_detail(pid)["monitor"]
+
+    @app.get("/api/protocols/{pid}/incidents")
+    def protocol_incidents(pid: str, request: Request) -> list[dict[str, Any]]:
+        guard(request)
+        _require_protocols()
+        return _store.protocol_detail(pid)["incidents"]
 
     return app
 

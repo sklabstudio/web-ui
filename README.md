@@ -36,10 +36,29 @@ CodeTrials / PromptBench. See `docs/architecture.md`.
 
 ## Features
 
-Dashboard, repos (allowed roots only), plan-then-run task flow, live SSE run
-page, attempts/retry evidence, approval gates, verification view, read-only
-diff viewer, history, agents, providers (secret-safe), environments,
-benchmarks, codetrials/promptbench read views, skills foundation, settings.
+Dashboard (runs + Security/Contracts/Protocols summaries), repos (allowed
+roots only), plan-then-run task flow, live SSE run page, attempts/retry
+evidence, approval gates, verification view, read-only diff viewer, history,
+agents, providers (secret-safe), environments, benchmarks,
+codetrials/promptbench read views, skills foundation, settings.
+
+### Security / Contracts / Protocols (v0.2)
+
+- **Security** (`/security`): engagements, browser status, live traffic
+  (redacted), API map + role matrix, findings, bounded simulations, backend
+  impact, remediation chain, reports — via optional private AppSec Lab.
+- **Contracts** (`/contracts`): projects, inventory, toolchain, analysis,
+  tests, fuzz, invariants, authorities, standards, upgrade review, gas,
+  reports — via optional public Contract Toolkit.
+- **Protocols** (`/protocols`): map, asset flows, authorities, dependencies,
+  specs, invariants, threat model, evidence graph, economic twin
+  (SIMULATION ONLY), upgrade intelligence, deployment guard, monitoring,
+  incidents, assurance profile — via optional private Protocol Intelligence.
+
+Optional private SKLab modules can integrate through the public backend
+contract when installed locally. Private code/data never ships in this repo.
+See `docs/private-integrations.md`, `docs/security-ui.md`,
+`docs/contracts-ui.md`, `docs/protocols-ui.md`.
 
 ## Installation / Development / Deployment / Auth
 
@@ -60,8 +79,9 @@ See `docs/integrations.md`, `docs/mock-mode.md`, `docs/demo.md`.
 
 ## Limitations / Roadmap
 
-No direct patch apply, no leaderboard, no Skill Hub auto-install, no Cyber /
-Contracts packs yet. See `docs/progress.md`.
+No direct patch apply, no leaderboard, no Skill Hub auto-install. Security /
+Contracts / Protocols live wiring degrades to typed mocks until optional
+modules are installed locally. See `docs/progress.md`.
 
 ## License
 

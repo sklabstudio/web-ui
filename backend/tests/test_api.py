@@ -25,7 +25,7 @@ def make_client(mode: str = "disabled") -> TestClient:
 def test_health_and_version() -> None:
     c = make_client()
     assert c.get("/api/health").json()["ok"] is True
-    assert c.get("/api/version").json()["api_schema"] == 1
+    assert c.get("/api/version").json()["api_schema"] == 2
 
 
 def test_system_degraded_not_fake() -> None:

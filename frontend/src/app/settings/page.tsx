@@ -4,9 +4,11 @@ import { api } from "@/lib/api";
 
 export default function SettingsPage() {
   const [s, setS] = useState<Record<string, unknown> | null>(null);
+  const [sys, setSys] = useState<Record<string, { state: string; detail?: string }> | null>(null);
   const [msg, setMsg] = useState("");
   useEffect(() => {
     api<Record<string, unknown>>("/api/settings").then(setS).catch(() => {});
+    api<Record<string, { state: string }>>("/api/system").then(setSys).catch(() => {});
   }, []);
   async function save() {
     try {
@@ -47,6 +49,19 @@ export default function SettingsPage() {
       <p className="text-xs text-zinc-500">
         Allowed repo roots: {((s.allowed_repo_roots as string[]) || []).join(", ")}
       </p>
+      <section aria-label="Integrations" className="rounded border border-zinc-800 p-3 text-sm">
+        <h2 className="font-semibold">Integrations (status only — no credentials)</h2>
+        {!sys ? <p className="text-zinc-500">Loading…</p> : (
+          <ul className="mt-2 grid gap-1 md:grid-cols-2">
+            {[["Security (AppSec Lab)", "appsec_lab"], ["Contracts (Toolkit)", "contract_toolkit"], ["Protocols (Intelligence)", "protocol_intelligence"], ["SKLab CLI", "sklab_cli"]].map(([label, key]) => (
+              <li key={key} className="flex justify-between rounded border border-zinc-800 px-2 py-1">
+                <span>{label}</span>
+                <span className="mono text-xs">{sys[key]?.state || "UNKNOWN"}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <button onClick={save} className="rounded bg-cyan-500 px-3 py-1 text-sm font-semibold text-black">Save</button>
       {msg && <p className="text-xs">{msg}</p>}
     </div>

@@ -1,5 +1,5 @@
 """SKLab Web API package."""
 from __future__ import annotations
 
-__version__ = "0.1.0"
-SCHEMA_VERSION = 1
+__version__ = "0.2.0"
+SCHEMA_VERSION = 2

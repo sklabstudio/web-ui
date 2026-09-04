@@ -44,13 +44,16 @@ class UIConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
     server: ServerConfig = ServerConfig()
     repositories: RepositoriesConfig = RepositoriesConfig()
     auth: AuthConfig = AuthConfig()
     integrations: IntegrationsConfig = IntegrationsConfig()
     ui: UIConfig = UIConfig()
     mock_mode: bool = False
+    mock_security: bool = False
+    mock_contracts: bool = False
+    mock_protocols: bool = False
 
 
 def _default_allowed_roots() -> list[str]:
@@ -67,6 +70,19 @@ def load_config(config_path: str | None = None) -> AppConfig:
     # Env overrides (highest precedence)
     if os.environ.get("SKLAB_MOCK_MODE", "").lower() in ("1", "true", "yes"):
         cfg.mock_mode = True
+    for attr, keys in (
+        ("mock_security", ("SKLAB_MOCK_SECURITY",)),
+        ("mock_contracts", ("SKLAB_MOCK_CONTRACTS",)),
+        ("mock_protocols", ("SKLAB_MOCK_PROTOCOLS",)),
+    ):
+        vals = [os.environ.get(k, "").lower() for k in keys]
+        if any(v in ("1", "true", "yes") for v in vals):
+            setattr(cfg, attr, True)
+    # unified mock mode implies per-module mocks
+    if cfg.mock_mode:
+        cfg.mock_security = True
+        cfg.mock_contracts = True
+        cfg.mock_protocols = True
     auth_mode = os.environ.get("AUTH_MODE", "")
     if auth_mode in ("disabled", "token", "password"):
         cfg.auth.mode = auth_mode  # type: ignore[assignment]
