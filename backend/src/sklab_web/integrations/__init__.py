@@ -78,14 +78,14 @@ def component_state(name: str, mock_mode: bool) -> dict[str, Any]:
         return {"state": s, "version": v, "detail": d}
     pkg = {
         "orchestrator": "sklab_orchestrator",
-        "agent_adapters": "sklab_agents",
-        "provider_connections": "sklab_connections",
-        "repo_context": "sklab_repo_context",
-        "reprobox": "sklab_reprobox",
-        "patchbench": "sklab_patchbench",
-        "benchsuite": "sklab_benchsuite",
-        "codetrials": "sklab_codetrials",
-        "promptbench": "sklab_promptbench",
+        "agent_adapters": "sklab_agent_adapters",
+        "provider_connections": "sklab_provider_connections",
+        "repo_context": "repocontext",
+        "reprobox": "reprobox",
+        "patchbench": "patchbench",
+        "benchsuite": "benchsuite",
+        "codetrials": "codetrials",
+        "promptbench": "promptbench",
     }.get(name, name)
     ok, ver = _mod_available(pkg)
     if ok:

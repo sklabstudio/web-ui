@@ -458,19 +458,37 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         st = _appsec.status(config.mock_mode or config.mock_security)
         out = {"module": "security.appsec", **st}
         if st.get("mock") or st["state"] == "READY":
-            out.update(_store.security_overview())
+            if not st.get("mock") and _appsec.live_available():
+                live = _appsec.live_overview()
+                if live is not None:
+                    out.update(_appsec.redacted(live))
+                else:
+                    out.update(_store.security_overview())
+            else:
+                out.update(_store.security_overview())
         return _appsec.redacted(out)
 
     @app.get("/api/security/engagements")
     def security_engagements(request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_security()
+        st = _require_security()
+        if not st.get("mock"):
+            live = _appsec.live_engagements()
+            if live is not None:
+                return [_appsec.redacted(e) for e in live]
         return [_appsec.redacted(e) for e in _store.security_engagements()]
 
     @app.get("/api/security/engagements/{eng_id}")
     def security_engagement(eng_id: str, request: Request) -> dict[str, Any]:
         guard(request)
-        _require_security()
+        st = _require_security()
+        if not st.get("mock"):
+            live = _appsec.live_engagements()
+            if live is not None:
+                for e in live:
+                    if e["id"] == eng_id:
+                        return _appsec.redacted(e)
+                raise _err(404, "ENGAGEMENT_NOT_FOUND", "Engagement not found")
         for e in _store.security_engagements():
             if e["id"] == eng_id:
                 return _appsec.redacted(e)
@@ -479,7 +497,12 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.get("/api/security/engagements/{eng_id}/traffic")
     def security_traffic(eng_id: str, request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_security()
+        st = _require_security()
+        if not st.get("mock"):
+            live = _appsec.live_traffic()
+            if live is not None:
+                return [_appsec.redacted(t) for t in live]
+            raise _err(404, "ENGAGEMENT_NOT_FOUND", "Engagement not found")
         if eng_id != "eng-demo":
             raise _err(404, "ENGAGEMENT_NOT_FOUND", "Engagement not found")
         return [_appsec.redacted(t) for t in _store.security_traffic()]
@@ -487,7 +510,12 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.get("/api/security/engagements/{eng_id}/api-map")
     def security_api_map(eng_id: str, request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_security()
+        st = _require_security()
+        if not st.get("mock"):
+            live = _appsec.live_api_map()
+            if live is not None:
+                return live
+            raise _err(404, "ENGAGEMENT_NOT_FOUND", "Engagement not found")
         if eng_id != "eng-demo":
             raise _err(404, "ENGAGEMENT_NOT_FOUND", "Engagement not found")
         return _store.security_api_map()
@@ -495,13 +523,24 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.get("/api/security/findings")
     def security_findings(request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_security()
+        st = _require_security()
+        if not st.get("mock"):
+            live = _appsec.live_findings()
+            if live is not None:
+                return [_appsec.redacted(f) for f in live]
         return [_appsec.redacted(f) for f in _store.security_findings()]
 
     @app.get("/api/security/findings/{fid}")
     def security_finding(fid: str, request: Request) -> dict[str, Any]:
         guard(request)
-        _require_security()
+        st = _require_security()
+        if not st.get("mock"):
+            live = _appsec.live_findings()
+            if live is not None:
+                for f in live:
+                    if f["id"] == fid:
+                        return _appsec.redacted(f)
+                raise _err(404, "NOT_FOUND", "Finding not found")
         for f in _store.security_findings():
             if f["id"] == fid:
                 return _appsec.redacted(f)
@@ -510,7 +549,11 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.get("/api/security/simulations")
     def security_simulations(request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_security()
+        st = _require_security()
+        if not st.get("mock"):
+            live = _appsec.live_simulations()
+            if live is not None:
+                return live
         return _store.security_simulations()
 
     @app.get("/api/security/reports")
@@ -533,23 +576,59 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         st = _contracts.status(config.mock_mode or config.mock_contracts)
         out: dict[str, Any] = {"module": "contracts.toolkit", **st}
         if st.get("mock") or st["state"] == "READY":
-            projs = _store.contract_projects()
-            out.update({"projects": len(projs), "latest_analysis": "2026-09-01",
-                        "open_findings": len(_store.contract_findings()),
-                        "failing_tests": 1, "failing_invariants": 1,
-                        "latest_upgrade": "REVIEW_REQUIRED"})
+            if not st.get("mock"):
+                ids = _contracts.live_project_ids()
+                live_find = _contracts.live_findings(ids[0]) if ids else None
+                if ids is not None:
+                    out.update({"projects": len(ids),
+                                "open_findings": len(live_find) if live_find else 0,
+                                "live": True})
+                else:
+                    projs = _store.contract_projects()
+                    out.update({"projects": len(projs), "latest_analysis": "2026-09-01",
+                                "open_findings": len(_store.contract_findings()),
+                                "failing_tests": 1, "failing_invariants": 1,
+                                "latest_upgrade": "REVIEW_REQUIRED"})
+            else:
+                projs = _store.contract_projects()
+                out.update({"projects": len(projs), "latest_analysis": "2026-09-01",
+                            "open_findings": len(_store.contract_findings()),
+                            "failing_tests": 1, "failing_invariants": 1,
+                            "latest_upgrade": "REVIEW_REQUIRED"})
         return out
 
     @app.get("/api/contracts/projects")
     def contracts_projects(request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_contracts()
+        st = _require_contracts()
+        if not st.get("mock"):
+            ids = _contracts.live_project_ids()
+            if ids:
+                out = []
+                for pid in ids:
+                    live = _contracts.live_projects(pid)
+                    if live:
+                        out.extend(live)
+                if out:
+                    return out
+                raise _err(404, "NOT_FOUND", "Contract project not found")
+            if ids is not None:
+                raise _err(404, "NOT_FOUND", "Contract project not found")
         return _store.contract_projects()
 
     @app.get("/api/contracts/projects/{pid}")
     def contracts_project(pid: str, request: Request) -> dict[str, Any]:
         guard(request)
-        _require_contracts()
+        st = _require_contracts()
+        if not st.get("mock"):
+            live = _contracts.live_projects(pid)
+            if live:
+                detail = dict(live[0])
+                inv = _contracts.live_inventory(pid)
+                if inv is not None:
+                    detail["inventory"] = inv
+                return detail
+            raise _err(404, "NOT_FOUND", "Contract project not found")
         for p in _store.contract_projects():
             if p["id"] == pid:
                 detail = dict(p)
@@ -560,27 +639,48 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.post("/api/contracts/projects/{pid}/compile")
     def contracts_compile(pid: str, request: Request) -> dict[str, Any]:
         guard(request)
-        _require_contracts()
+        st = _require_contracts()
+        if not st.get("mock"):
+            live = _contracts.live_compile(pid)
+            if live is not None:
+                audit("contract compile", pid)
+                return live
+            raise _err(404, "NOT_FOUND", "Contract project not found")
         audit("contract compile", pid)
         return {"project": pid, "ok": True, "compiler": "solc 0.8.24", "contracts": 3}
 
     @app.post("/api/contracts/projects/{pid}/test")
     def contracts_test(pid: str, request: Request) -> dict[str, Any]:
         guard(request)
-        _require_contracts()
+        st = _require_contracts()
+        if not st.get("mock"):
+            live = _contracts.live_tests(pid)
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Contract project not found")
         return {"project": pid, "total": 42, "passed": 41, "failed": 1, "skipped": 0,
                 "duration_seconds": 12, "failures": [{"test": "testMintZero", "log": "assertion failed"}]}
 
     @app.post("/api/contracts/projects/{pid}/analyze")
     def contracts_analyze(pid: str, request: Request) -> dict[str, Any]:
         guard(request)
-        _require_contracts()
+        st = _require_contracts()
+        if not st.get("mock"):
+            live = _contracts.live_findings(pid)
+            if live is not None:
+                return {"project": pid, "findings": live, "live": True}
+            raise _err(404, "NOT_FOUND", "Contract project not found")
         return {"project": pid, "findings": _store.contract_findings()}
 
     @app.post("/api/contracts/projects/{pid}/fuzz")
     def contracts_fuzz(pid: str, request: Request) -> dict[str, Any]:
         guard(request)
-        _require_contracts()
+        st = _require_contracts()
+        if not st.get("mock"):
+            live = _contracts.live_fuzz(pid)
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Contract project not found")
         return {"project": pid, "tool": "echidna", "seed": 42, "runs": 10000,
                 "failures": 1, "counterexample": "deposit(1e18) drifts 1 wei",
                 "duration_seconds": 90}
@@ -588,7 +688,12 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.post("/api/contracts/projects/{pid}/invariants")
     def contracts_invariants(pid: str, request: Request) -> dict[str, Any]:
         guard(request)
-        _require_contracts()
+        st = _require_contracts()
+        if not st.get("mock"):
+            live = _contracts.live_invariants(pid)
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Contract project not found")
         return {"project": pid, "invariants": [
             {"property": "totalAssets >= totalSupply", "status": "FAILED", "runs": 10000,
              "depth": 32, "counterexample": "seed 42", "assumptions": ["no fee"],
@@ -597,13 +702,25 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.get("/api/contracts/findings")
     def contracts_findings(request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_contracts()
+        st = _require_contracts()
+        if not st.get("mock"):
+            ids = _contracts.live_project_ids() or []
+            out = []
+            for pid in ids:
+                live = _contracts.live_findings(pid)
+                if live:
+                    out.extend(live)
+            return out
         return _store.contract_findings()
 
     @app.get("/api/contracts/tools")
     def contracts_tools(request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_contracts()
+        st = _require_contracts()
+        if not st.get("mock"):
+            live = _contracts.live_tools()
+            if live is not None:
+                return live
         return _store.contract_tools()
 
     # ---------- v0.2: Protocols (private-safe) ----------
@@ -620,64 +737,129 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         st = _protocols.status(config.mock_mode or config.mock_protocols)
         out2: dict[str, Any] = {"module": "protocols.intelligence", **st}
         if st.get("mock") or st["state"] == "READY":
-            plist = _store.protocol_list()
-            out2.update({"protocols": len(plist), "stale": 1, "alerts": 1})
+            if not st.get("mock"):
+                live = _protocols.live_list()
+                if live is not None:
+                    out2.update({"protocols": len(live), "stale": 0, "alerts": 0, "live": True})
+                else:
+                    plist = _store.protocol_list()
+                    out2.update({"protocols": len(plist), "stale": 1, "alerts": 1})
+            else:
+                plist = _store.protocol_list()
+                out2.update({"protocols": len(plist), "stale": 1, "alerts": 1})
         return out2
 
     @app.get("/api/protocols")
     def protocols_list(request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_protocols()
+        st = _require_protocols()
+        if not st.get("mock"):
+            live = _protocols.live_list()
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Protocol not found")
         return _store.protocol_list()
 
     @app.get("/api/protocols/{pid}")
     def protocol_detail(pid: str, request: Request) -> dict[str, Any]:
         guard(request)
-        _require_protocols()
+        st = _require_protocols()
+        if not st.get("mock"):
+            live_map = _protocols.live_map(pid)
+            if live_map is None:
+                raise _err(404, "NOT_FOUND", "Protocol not found")
+            return {"id": pid, "chain": "ethereum", "source_summary": "live workspace",
+                    "live": True, **live_protocol_sections(pid)}
         if pid != "proto-demo":
             raise _err(404, "NOT_FOUND", "Protocol not found")
         return _store.protocol_detail(pid)
 
+    def live_protocol_sections(pid: str) -> dict[str, Any]:
+        return {
+            "map": _protocols.live_map(pid),
+            "assets": _protocols.live_assets(pid),
+            "authorities": _protocols.live_authorities(pid),
+            "specs": _protocols.live_specs(pid),
+            "invariants": _protocols.live_invariants(pid),
+            "evidence": _protocols.live_evidence(pid),
+            "assurance": _protocols.live_assurance(pid),
+        }
+
     @app.get("/api/protocols/{pid}/map")
     def protocol_map(pid: str, request: Request) -> dict[str, Any]:
         guard(request)
-        _require_protocols()
+        st = _require_protocols()
+        if not st.get("mock"):
+            live = _protocols.live_map(pid)
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Protocol not found")
         return _store.protocol_detail(pid)["map"]
 
     @app.get("/api/protocols/{pid}/assets")
     def protocol_assets(pid: str, request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_protocols()
+        st = _require_protocols()
+        if not st.get("mock"):
+            live = _protocols.live_assets(pid)
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Protocol not found")
         return _store.protocol_detail(pid)["assets"]
 
     @app.get("/api/protocols/{pid}/authorities")
     def protocol_authorities(pid: str, request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_protocols()
+        st = _require_protocols()
+        if not st.get("mock"):
+            live = _protocols.live_authorities(pid)
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Protocol not found")
         return _store.protocol_detail(pid)["authorities"]
 
     @app.get("/api/protocols/{pid}/specs")
     def protocol_specs(pid: str, request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_protocols()
+        st = _require_protocols()
+        if not st.get("mock"):
+            live = _protocols.live_specs(pid)
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Protocol not found")
         return _store.protocol_detail(pid)["specs"]
 
     @app.get("/api/protocols/{pid}/invariants")
     def protocol_invariants(pid: str, request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_protocols()
+        st = _require_protocols()
+        if not st.get("mock"):
+            live = _protocols.live_invariants(pid)
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Protocol not found")
         return _store.protocol_detail(pid)["invariants"]
 
     @app.get("/api/protocols/{pid}/evidence")
     def protocol_evidence(pid: str, request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_protocols()
+        st = _require_protocols()
+        if not st.get("mock"):
+            live = _protocols.live_evidence(pid)
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Protocol not found")
         return _store.protocol_detail(pid)["evidence"]
 
     @app.get("/api/protocols/{pid}/assurance")
     def protocol_assurance(pid: str, request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_protocols()
+        st = _require_protocols()
+        if not st.get("mock"):
+            live = _protocols.live_assurance(pid)
+            if live is not None:
+                return live
+            raise _err(404, "NOT_FOUND", "Protocol not found")
         return _store.protocol_detail(pid)["assurance"]
 
     @app.get("/api/protocols/{pid}/monitor")
