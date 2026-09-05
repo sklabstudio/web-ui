@@ -725,6 +725,20 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         return out
 
     # ---------- plan / runs ----------
+    def _require_agents(svc: Any) -> None:
+        try:
+            agents = svc.agents()
+        except Exception:
+            agents = []
+        usable = [a for a in agents or [] if getattr(a, "installed", False)]
+        if not usable:
+            raise _err(
+                503,
+                "AGENT_UNAVAILABLE",
+                "No usable agent installed: planning cannot select an agent. "
+                "Install an agent (see Agents) or use mock mode for trials.",
+            )
+
     @app.post("/api/runs/plan")
     def plan(body: PlanRequest, request: Request) -> dict[str, Any]:
         guard(request)
@@ -736,6 +750,7 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
                 svc = _orch.get_service()
             except RuntimeError:
                 raise _err(503, "MODULE_UNAVAILABLE", "Orchestrator is not installed")
+            _require_agents(svc)
             opts = _live_options(body)
             try:
                 rec = svc.create_run(body.task, repo=body.repository or "", options=opts)
@@ -816,6 +831,7 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
                 svc = _orch.get_service()
             except RuntimeError:
                 raise _err(503, "MODULE_UNAVAILABLE", "Orchestrator is not installed")
+            _require_agents(svc)
             try:
                 rec = svc.create_run(
                     body.task, repo=body.repository or "", options=_live_options(body)
