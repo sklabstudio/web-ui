@@ -320,6 +320,7 @@ def live_agents() -> list[dict[str, Any]] | None:
                 "installed": bool(getattr(a, "installed", False)),
                 "version": getattr(a, "version", None),
                 "auth_ready": bool(getattr(a, "auth_ready", False)),
+                "auth_state": str(getattr(a, "auth_state", "AUTH_UNKNOWN")),
                 "capabilities": cap_map,
                 "supports_model_selection": bool(getattr(a, "supports_model_selection", True)),
                 "sessions": False,

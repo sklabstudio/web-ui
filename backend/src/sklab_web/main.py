@@ -839,7 +839,10 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
             agents = svc.agents()
         except Exception:
             agents = []
-        usable = [a for a in agents or [] if getattr(a, "installed", False)]
+        usable = [
+            a for a in agents or []
+            if getattr(a, "installed", False) and getattr(a, "auth_ready", False)
+        ]
         if not usable:
             raise _err(
                 503,
