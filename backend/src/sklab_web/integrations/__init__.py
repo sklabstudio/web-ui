@@ -57,9 +57,9 @@ def component_state(name: str, mock_mode: bool) -> dict[str, Any]:
 
         return protocol_intelligence.status(mock_mode)
     if name == "sklab_cli":
-        import shutil
+        from sklab_web.integrations.cli import cli_available
 
-        if shutil.which("sklab"):
+        if cli_available("sklab"):
             return {"state": "READY", "version": "cli", "detail": "sklab CLI detected"}
         return {"state": "NOT_INSTALLED", "version": None, "detail": "sklab CLI not installed"}
     if mock_mode:

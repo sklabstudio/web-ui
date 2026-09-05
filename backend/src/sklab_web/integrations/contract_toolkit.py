@@ -267,15 +267,17 @@ def live_tools(timeout: float = 15.0) -> list[dict[str, Any]] | None:
     so callers can fall back to mock fixtures honestly.
     """
     import json
-    import shutil
     import subprocess
 
-    if shutil.which("sklab-contract") is None:
+    from sklab_web.integrations.cli import _augmented_env, cli_available
+
+    if not cli_available("sklab-contract"):
         return None
     try:
         out = subprocess.run(
             ["sklab-contract", "tools", "--json"],
             capture_output=True, text=True, timeout=timeout,
+            env=_augmented_env(),
         )
     except Exception:
         return None

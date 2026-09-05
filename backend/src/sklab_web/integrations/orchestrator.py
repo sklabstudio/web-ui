@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import threading
 from pathlib import Path
@@ -26,7 +25,9 @@ def orchestrator_available() -> tuple[bool, str | None]:
         return True, getattr(mod, "__version__", "unknown")
     except Exception:
         pass
-    if shutil.which("sklab-run"):
+    from sklab_web.integrations.cli import cli_available
+
+    if cli_available("sklab-run"):
         return True, "cli"
     return False, None
 
@@ -44,13 +45,16 @@ def build_plan_via_orchestrator(payload: dict[str, Any]) -> dict[str, Any] | Non
     except Exception:
         pass
     # CLI fallback: only machine-readable JSON, never Rich text.
-    if shutil.which("sklab-run"):
+    from sklab_web.integrations.cli import _augmented_env, cli_available
+
+    if cli_available("sklab-run"):
         try:
             p = subprocess.run(
                 ["sklab-run", "plan", "--json", payload.get("task", "")],
                 capture_output=True,
                 text=True,
                 timeout=10,
+                env=_augmented_env(),
             )
             if p.returncode == 0 and p.stdout.strip().startswith("{"):
                 return json.loads(p.stdout)
