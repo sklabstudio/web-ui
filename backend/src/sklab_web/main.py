@@ -2024,6 +2024,14 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
             live = _protocols.live_assets(pid)
             if live is not None:
                 return live
+            from sklab_web.integrations import protocols_cli as _pcl
+
+            try:
+                dto = _pcl.assets_dto(pid)
+            except CliError as exc:
+                raise _cli_err(exc)
+            if dto is not None:
+                return dto
             raise _err(404, "NOT_FOUND", "Protocol not found")
         return _store.protocol_detail(pid)["assets"]
 

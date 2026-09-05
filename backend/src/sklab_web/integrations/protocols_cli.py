@@ -85,6 +85,34 @@ def assets(pid: str) -> Any:
     return _run(pid, ["assets"])
 
 
+def assets_dto(pid: str) -> list[dict[str, Any]] | None:
+    """Normalized asset-flow rows (stable keys for the UI)."""
+    data = assets(pid)
+    rows: Any = []
+    if isinstance(data, dict):
+        rows = data.get("flows", data.get("assets", []))
+    elif isinstance(data, list):
+        rows = data
+    if not isinstance(rows, list):
+        return None
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        out.append(
+            {
+                "asset": str(r.get("asset", "")),
+                "source": str(r.get("source", "")),
+                "destination": str(r.get("destination", "")),
+                "trigger": str(r.get("trigger", "")),
+                "authority": str(r.get("authority", "")),
+                "constraint": str(r.get("constraint", r.get("expected_invariant", "")))[:300],
+                "live": True,
+            }
+        )
+    return out or None
+
+
 def authorities(pid: str) -> Any:
     return _run(pid, ["authorities"])
 
