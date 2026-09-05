@@ -89,6 +89,45 @@ def authorities(pid: str) -> Any:
     return _run(pid, ["authorities"])
 
 
+def authorities_dto(pid: str) -> list[dict[str, Any]] | None:
+    """Normalized capability DTOs (stable keys for the UI)."""
+    data = authorities(pid)
+    caps: Any = []
+    if isinstance(data, dict):
+        caps = data.get("capabilities", data.get("authorities", []))
+    elif isinstance(data, list):
+        caps = data
+    if not isinstance(caps, list):
+        return None
+    blast: dict[str, Any] = {}
+    if isinstance(data, dict):
+        for b in data.get("blast_radius", []) or []:
+            if isinstance(b, dict) and b.get("authority"):
+                blast[str(b["authority"])] = b
+    out: list[dict[str, Any]] = []
+    for c in caps:
+        if not isinstance(c, dict):
+            continue
+        auth = str(c.get("authority", ""))
+        b = blast.get(auth, {})
+        reach = b.get("reachable", []) if isinstance(b, dict) else []
+        out.append(
+            {
+                "authority": auth,
+                "capability": str(c.get("capability", c.get("normalized", ""))),
+                "target": str(c.get("target", "")),
+                "evidence": str(c.get("evidence", ""))[:500],
+                "confidence": str(c.get("confidence", "UNKNOWN")),
+                "transitive": bool(c.get("transitive", False)),
+                "blast_radius": (
+                    f"{len(reach)} reachable" if isinstance(reach, list) else str(reach)
+                ),
+                "live": True,
+            }
+        )
+    return out or None
+
+
 def dependencies(pid: str) -> Any:
     # dependency view derives from inspect + map; expose both honestly
     insp = _run(pid, ["inspect"])

@@ -143,7 +143,7 @@ export default function ProtocolsPage() {
                   {(a.target ? ` → ${String(a.target)}` : "") || ""}
                 </span>
                 <p className="text-xs text-zinc-500">
-                  blast radius {String((a as Record<string, unknown>).blast_radius ?? (a as Record<string, unknown>).reachable ?? "UNKNOWN")} · conf {String(a.confidence ?? "—")}
+                  blast radius {typeof (a as Record<string, unknown>).blast_radius === "object" ? JSON.stringify((a as Record<string, unknown>).blast_radius ?? (a as Record<string, unknown>).reachable ?? "UNKNOWN").slice(0, 200) : String((a as Record<string, unknown>).blast_radius ?? (a as Record<string, unknown>).reachable ?? "UNKNOWN")} · conf {String(a.confidence ?? "—")}
                 </p>
                 {a.evidence ? <p className="mono mt-1 text-xs text-zinc-500">{String(a.evidence)}</p> : null}
               </div>

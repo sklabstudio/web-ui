@@ -2033,6 +2033,18 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         st = _require_protocols()
         if not st.get("mock"):
             live = _protocols.live_authorities(pid)
+            if live is not None and any(isinstance(x, dict) and x.get("authority") for x in live):
+                return live
+            # Fall back to CLI capability DTOs (stable keys) when the graph
+            # nodes carry no authority fields.
+            from sklab_web.integrations import protocols_cli as _pcl
+
+            try:
+                dto = _pcl.authorities_dto(pid)
+            except CliError as exc:
+                raise _cli_err(exc)
+            if dto is not None:
+                return dto
             if live is not None:
                 return live
             raise _err(404, "NOT_FOUND", "Protocol not found")
