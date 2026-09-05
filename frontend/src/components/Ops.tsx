@@ -8,7 +8,7 @@ export function ErrorNote({ error, onRetry }: { error: unknown; onRetry?: () => 
   const { code, message } = normError(error);
   const help = ERROR_HELP[code] || "Retry, or check system health.";
   return (
-    <p role="alert" className="rounded border border-red-800 bg-red-950 p-2 text-sm">
+    <p role="alert" className="rounded border border-red-800 bg-red-950 p-3 text-sm">
       <span className="mono text-xs text-red-300">{code}</span>: {message}
       <span className="block text-xs text-zinc-400">{help}</span>
       {onRetry && (
@@ -57,7 +57,7 @@ export function ActionButton({
           setBusy(false);
         }
       }}
-      className={`rounded px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 ${cls}`}
+      className={`ops-button rounded px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 ${cls}`}
     >
       {busy ? busyLabel || `${label}…` : label}
       {disabledReason && !busy ? ` (${disabledReason})` : ""}
@@ -67,11 +67,11 @@ export function ActionButton({
 
 /** Small loading / empty placeholders for consistent states. */
 export function Loading({ what }: { what?: string }) {
-  return <p className="text-sm text-zinc-500">Loading{what ? ` ${what}` : ""}…</p>;
+  return <p className="eyebrow">&gt; loading{what ? ` ${what}` : ""}...</p>;
 }
 
 export function Empty({ what }: { what: string }) {
-  return <p className="text-sm text-zinc-500">No {what} — empty state, not fake data.</p>;
+  return <p className="text-sm text-zinc-500">&gt; NO {what.toUpperCase()} FOUND. Empty state, not fake data.</p>;
 }
 
 /** Generic key/value grid for detail DTOs (unknown-safe). */

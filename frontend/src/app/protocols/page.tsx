@@ -19,6 +19,8 @@ export default function ProtocolsPage() {
   const [err, setErr] = useState<unknown>("");
   const [msg, setMsg] = useState("");
   const [createId, setCreateId] = useState("");
+  const [importId, setImportId] = useState("");
+  const [importSource, setImportSource] = useState("// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\ncontract ProtocolFixture {}\n");
   const [scenario, setScenario] = useState("price-drop");
   const [uv, setUv] = useState({ old: "", new: "" });
 
@@ -64,11 +66,15 @@ export default function ProtocolsPage() {
   const arr = (k: string) => (Array.isArray(d[k]) ? (d[k] as Record<string, unknown>[]) : []);
   const showOut = out ? JSON.stringify(out, null, 2).slice(0, 4000) : "";
   const unavailable = !status || String(status.state) === "NOT_INSTALLED";
+  const isMock = Boolean(status?.mock);
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Protocols</h1>
-      <p className="rounded border border-zinc-800 p-2 text-xs text-zinc-500">SIMULATION ONLY — no live transactions. Private implementation stays hidden.</p>
+      <section className="term-frame p-4">
+        <p className="eyebrow">PROTOCOLS / ASSURANCE WORKSPACE</p>
+        <h1 className="mt-1 text-2xl font-bold">Protocols</h1>
+        <p className="mt-2 text-sm text-zinc-400">Build protocol intelligence from local sources. Simulation only: no signing, broadcasting, or live transactions.</p>
+      </section>
       {err ? <ErrorNote error={err} onRetry={load} /> : null}
       {msg && <p className="text-xs text-zinc-400">{msg}</p>}
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -85,6 +91,23 @@ export default function ProtocolsPage() {
           className="rounded bg-zinc-900 px-2 py-1" aria-label="New protocol ID" />
         <ActionButton label="Create" onRun={() => act("create", "POST", "/api/protocols", { id: createId })} disabledReason={!createId ? "protocol ID required" : unavailable ? "module not installed" : ""} />
       </div>
+      <section className="term-frame grid gap-3 p-4 md:grid-cols-[0.35fr_1fr_auto]" aria-label="Protocol import">
+        <div>
+          <div className="eyebrow">IMPORT SOURCE</div>
+          <p className="mt-1 text-xs text-zinc-500">Creates a disposable protocol workspace and stores only bounded Solidity source.</p>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          <label className="text-sm">Protocol ID
+            <input value={importId} onChange={(e) => setImportId(e.target.value)} className="mt-1 block w-full rounded bg-zinc-900 p-2 mono text-xs" aria-label="Import protocol ID" placeholder="fixture-protocol" />
+          </label>
+          <label className="text-sm">Solidity source
+            <textarea value={importSource} onChange={(e) => setImportSource(e.target.value)} rows={3} className="mt-1 block w-full rounded bg-zinc-900 p-2 mono text-xs" aria-label="Protocol source" />
+          </label>
+        </div>
+        <div className="flex items-end">
+          <ActionButton label="Import protocol" kind="primary" onRun={async () => { setPid(importId); await act("import", "POST", "/api/protocols/import", { id: importId, files: { "Protocol.sol": importSource } }); }} disabledReason={!importId ? "protocol ID required" : unavailable ? "module not installed" : ""} />
+        </div>
+      </section>
       <div role="tablist" aria-label="Protocol sections" className="flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => { setTab(t); setOut(null); setOutLabel(""); }}
@@ -117,8 +140,8 @@ export default function ProtocolsPage() {
       )}
       {tab === "Architecture" && (
         <section>
-          <GraphView title="Protocol map" nodes={(d.map as { nodes?: string[] } | undefined)?.nodes || ["DemoToken", "DemoVault", "PriceOracle"]}
-            edges={(((d.map as { edges?: string[][] } | undefined)?.edges) || [["DemoVault", "DemoToken"]]).map((e) => ({ from: e[0], to: e[1] }))} />
+          <GraphView title="Protocol map" nodes={(d.map as { nodes?: string[] } | undefined)?.nodes || []}
+            edges={(((d.map as { edges?: string[][] } | undefined)?.edges) || []).map((e) => ({ from: e[0], to: e[1] }))} />
         </section>
       )}
       {tab === "Asset Flows" && (
@@ -191,17 +214,19 @@ export default function ProtocolsPage() {
           </div>
         </section>
       )}
-      {tab === "Threat Model" && (
+      {tab === "Threat Model" && isMock && (
         <section className="rounded border border-zinc-800 p-4 text-sm">
           <ul className="text-xs text-zinc-300"><li>Actors: user, keeper, owner, oracle</li><li>Assets: USDC, shares</li><li>Boundaries: vault ↔ oracle, proxy ↔ impl</li><li>Mitigations: timelock (missing), oracle fallback (review)</li></ul>
         </section>
       )}
-      {tab === "Evidence" && (
+      {tab === "Threat Model" && !isMock && <Empty what="threat model for this workspace" />}
+      {tab === "Evidence" && isMock && (
         <section>
           <GraphView title="Evidence graph" nodes={["Finding ct-002", "Invariant totalAssets", "Fuzz seed 42", "Retest"]}
             edges={[{ from: "Finding ct-002", to: "Invariant totalAssets" }, { from: "Invariant totalAssets", to: "Fuzz seed 42" }, { from: "Fuzz seed 42", to: "Retest" }]} />
         </section>
       )}
+      {tab === "Evidence" && !isMock && <Empty what="evidence graph for this workspace" />}
       {tab === "Economic Twin" && (
         <section className="space-y-2 rounded border border-zinc-800 p-4 text-sm">
           <div className="flex flex-wrap items-end gap-2">
@@ -212,9 +237,9 @@ export default function ProtocolsPage() {
             <ActionButton label="Run simulation" kind="primary" onRun={() => act("simulate", "POST", `/api/protocols/${pid}/simulate`, { scenario, seed: 42, runs: 20 })} disabledReason={unavailable ? "module not installed" : ""} />
             <ActionButton label="Run scenario" onRun={() => act("economic", "POST", `/api/protocols/${pid}/economic`, { scenario })} disabledReason={unavailable ? "module not installed" : ""} />
           </div>
-          <p className="mono text-xs">config: {String((d.economic as Record<string, unknown> | undefined)?.config || "price -30%")}</p>
+           <p className="mono text-xs">config: {String((d.economic as Record<string, unknown> | undefined)?.config || (isMock ? "price -30%" : "not configured"))}</p>
           <p className="text-xs">result: {String((d.economic as Record<string, unknown> | undefined)?.result || "—")}</p>
-          <ul className="mt-2 text-xs text-zinc-400"><li>Price -30%</li><li>Liquidity -50%</li><li>Large withdrawal</li><li>Oracle delay</li></ul>
+           {isMock ? <ul className="mt-2 text-xs text-zinc-400"><li>Price -30%</li><li>Liquidity -50%</li><li>Large withdrawal</li><li>Oracle delay</li></ul> : null}
         </section>
       )}
       {tab === "Upgrades" && (
@@ -231,7 +256,7 @@ export default function ProtocolsPage() {
             <ActionButton label="Upgrade review" onRun={() => act("upgrade-review", "POST", `/api/protocols/${pid}/upgrade-review`, uv)} disabledReason={unavailable ? "module not installed" : ""} />
             <ActionButton label="Change impact" onRun={() => act("change-impact", "POST", `/api/protocols/${pid}/regression`)} disabledReason={unavailable ? "module not installed" : ""} />
           </div>
-          <p>Verdict: <StatusBadge status={String((d.upgrade as Record<string, unknown> | undefined)?.verdict || "REVIEW_REQUIRED")} /></p>
+           <p>Verdict: <StatusBadge status={String((d.upgrade as Record<string, unknown> | undefined)?.verdict || (isMock ? "REVIEW_REQUIRED" : "NOT_TESTED"))} /></p>
           <pre className="mono mt-2 max-h-48 overflow-auto text-xs">{JSON.stringify(d.upgrade || {}, null, 2).slice(0, 1500)}</pre>
         </section>
       )}
@@ -276,7 +301,7 @@ export default function ProtocolsPage() {
               </div>))}
           </div>
           <p className="text-xs text-zinc-500">Stale reason: {String((d.freshness as Record<string, unknown> | undefined)?.reason || "—")}. No single misleading score.</p>
-          {outLabel === "report" && <ReportViewer reports={[{ id: `${pid}-report`, kind: "markdown", title: `Protocol report (${pid})` }]} />}
+           {outLabel === "report" && <ReportViewer reports={[{ id: `${pid}-report`, kind: "markdown", title: `Protocol report (${pid})`, content: showOut }]} />}
         </section>
       )}
       {showOut && (

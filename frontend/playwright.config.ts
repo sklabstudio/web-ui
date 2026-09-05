@@ -42,7 +42,7 @@ export default defineConfig({
       timeout: 60000,
     },
     {
-      command: "node .next/standalone/server.js",
+      command: "npm run start",
       env: {
         SKLAB_BACKEND_URL: "http://127.0.0.1:8787",
         NODE_ENV: "production",

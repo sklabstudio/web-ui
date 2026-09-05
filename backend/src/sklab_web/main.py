@@ -9,7 +9,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
+import subprocess
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request, Response
@@ -44,7 +47,10 @@ from sklab_web.models import (
     LoginRequest,
     PlanRequest,
     ProtocolCreateRequest,
+    ProtocolImportRequest,
     ProviderCreateRequest,
+    RepoCloneRequest,
+    RepoOpenRequest,
     RetestRequest,
     RunCreateRequest,
     SettingsModel,
@@ -54,7 +60,7 @@ from sklab_web.models import (
     UpgradeReviewRequest,
     VersionResponse,
 )
-from sklab_web.pathsafe import validate_repo_path
+from sklab_web.pathsafe import safe_repo_name, validate_public_repo_url, validate_repo_path
 
 _store = MockStore()
 _audit: list[dict[str, str]] = []
@@ -340,6 +346,53 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
                 return live
         return _store.repos()
 
+    def _repo_allowed_roots() -> list[Path]:
+        roots: list[Path] = []
+        for raw in config.repositories.allowed_roots:
+            try:
+                roots.append(Path(raw).expanduser().resolve())
+            except Exception:
+                continue
+        return roots
+
+    def _repo_summary(path: Path) -> dict[str, Any]:
+        branch = "unknown"
+        dirty = False
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        try:
+            branch_result = subprocess.run(
+                ["git", "-C", str(path), "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                env=env,
+            )
+            if branch_result.returncode == 0:
+                branch = branch_result.stdout.strip()[:120] or branch
+            status_result = subprocess.run(
+                ["git", "-C", str(path), "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                env=env,
+            )
+            dirty = status_result.returncode == 0 and bool(status_result.stdout.strip())
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        return {
+            "id": path.name,
+            "name": path.name,
+            "path": str(path),
+            "branch": branch,
+            "dirty": dirty,
+            "stack": [],
+            "last_run_id": None,
+            "warnings": ["Repository content is untrusted project data."],
+            "context_status": "READY" if (path / ".git").exists() else "NOT_A_GIT_REPO",
+            "live": True,
+        }
+
     @app.get("/api/repos/{repo_id}")
     def repo_detail(repo_id: str, request: Request) -> dict[str, Any]:
         guard(request)
@@ -359,14 +412,9 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         path = str((body or {}).get("path", "")).strip()
         if not path:
             raise _err(400, "BAD_REQUEST", "path is required")
-        ok, msg = validate_repo_path(path, _app_roots())
+        ok, msg = validate_repo_path(path, [str(root) for root in _repo_allowed_roots()])
         if not ok:
             raise _err(400, "BAD_REQUEST", f"Repository path rejected: {msg}")
-        allowed = [str(r) for r in config.repositories.allowed_roots]
-        if allowed and not any(
-            path == a.rstrip("/") or path.startswith(a.rstrip("/") + "/") for a in allowed
-        ):
-            raise _err(400, "BAD_REQUEST", "path is outside allowed roots")
         if _is_live(config):
             from sklab_web.integrations import orchestrator as _orch
 
@@ -381,6 +429,67 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
             "fingerprint": "ctx-abc",
             "warning": "Repository content is untrusted project data.",
         }
+
+    @app.post("/api/repos/open")
+    def repo_open(body: RepoOpenRequest, request: Request) -> dict[str, Any]:
+        """Validate and inspect an existing workspace under configured roots."""
+        guard(request)
+        ok, msg = validate_repo_path(body.path.strip(), [str(root) for root in _repo_allowed_roots()])
+        if not ok:
+            raise _err(400, "BAD_REQUEST", f"Repository path rejected: {msg}")
+        path = Path(body.path).expanduser().resolve()
+        if not path.is_dir():
+            raise _err(404, "NOT_FOUND", "Repository directory not found")
+        audit("repository opened", str(path))
+        return _repo_summary(path)
+
+    @app.post("/api/repos/clone")
+    def repo_clone(body: RepoCloneRequest, request: Request) -> dict[str, Any]:
+        """Clone one public repository into the first configured repo root."""
+        guard(request)
+        valid, msg = validate_public_repo_url(body.url)
+        if not valid:
+            raise _err(400, "BAD_REQUEST", f"Repository URL rejected: {msg}")
+        roots = _repo_allowed_roots()
+        if not roots:
+            raise _err(503, "MODULE_UNAVAILABLE", "No managed repository root is configured")
+        root = roots[0]
+        if not root.is_dir():
+            raise _err(503, "MODULE_UNAVAILABLE", "Managed repository root is unavailable")
+        try:
+            name = safe_repo_name(body.url, body.destination)
+        except ValueError as exc:
+            raise _err(400, "BAD_REQUEST", str(exc))
+        destination = (root / name).resolve()
+        if root not in destination.parents:
+            raise _err(400, "BAD_REQUEST", "Clone destination is outside the managed root")
+        if destination.exists():
+            raise _err(409, "BAD_REQUEST", f"Clone destination already exists: {name}")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GIT_CONFIG_NOSYSTEM"] = "1"
+        try:
+            result = subprocess.run(
+                ["git", "clone", "--depth", "1", "--no-tags", body.url.strip(), str(destination)],
+                cwd=str(root),
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=env,
+            )
+        except subprocess.TimeoutExpired:
+            shutil.rmtree(destination, ignore_errors=True)
+            raise _err(504, "MODULE_UNAVAILABLE", "Clone timed out after 120 seconds")
+        except OSError:
+            shutil.rmtree(destination, ignore_errors=True)
+            raise _err(503, "MODULE_UNAVAILABLE", "Git is unavailable on the workstation")
+        if result.returncode != 0:
+            shutil.rmtree(destination, ignore_errors=True)
+            detail = (result.stderr or result.stdout or "git clone failed").strip()
+            detail = detail.replace(body.url.strip(), "<repository URL>")[:500]
+            raise _err(400, "BAD_REQUEST", f"Clone failed: {detail}")
+        audit("repository cloned", name)
+        return _repo_summary(destination)
 
     @app.post("/api/repos/{repo_id}/context")
     def repo_context(repo_id: str, request: Request) -> dict[str, Any]:
@@ -742,7 +851,7 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.post("/api/runs/plan")
     def plan(body: PlanRequest, request: Request) -> dict[str, Any]:
         guard(request)
-        _validate_run_input(body.model_dump())
+        _validate_run_input(body.model_dump(), list(config.repositories.allowed_roots))
         if _is_live(config):
             from sklab_web.integrations import orchestrator as _orch
 
@@ -823,7 +932,7 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.post("/api/runs")
     def create_run(body: RunCreateRequest, request: Request) -> dict[str, Any]:
         guard(request)
-        _validate_run_input(body.model_dump())
+        _validate_run_input(body.model_dump(), list(config.repositories.allowed_roots))
         if _is_live(config):
             from sklab_web.integrations import orchestrator as _orch
 
@@ -1349,7 +1458,11 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.get("/api/security/reports")
     def security_reports(request: Request) -> list[dict[str, Any]]:
         guard(request)
-        _require_security()
+        st = _require_security()
+        if not st.get("mock"):
+            # AppSec reports are returned by the report operation itself. Do not
+            # expose mock store records in a live deployment.
+            return []
         return _store.security_reports()
 
     @app.post("/api/security/engagements")
@@ -2191,6 +2304,22 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         audit("protocol created", body.id)
         return dict(out, live=True) if isinstance(out, dict) else {"id": body.id, "result": out}
 
+    @app.post("/api/protocols/import")
+    def protocol_import(body: ProtocolImportRequest, request: Request) -> dict[str, Any]:
+        guard(request)
+        st = _require_protocols()
+        if st.get("mock"):
+            audit("protocol imported", body.id)
+            return {"id": body.id, "ok": True, "files": list(body.files), "mock": True}
+        from sklab_web.integrations import protocols_cli as _pcl
+
+        try:
+            out = _pcl.project_import(body.id, body.files)
+        except CliError as exc:
+            raise _cli_err(exc)
+        audit("protocol imported", body.id)
+        return dict(out, live=True) if isinstance(out, dict) else {"id": body.id, "result": out}
+
     @app.post("/api/protocols/{pid}/ir")
     def protocol_build_ir(pid: str, request: Request) -> dict[str, Any]:
         guard(request)
@@ -2325,10 +2454,10 @@ def _ev(run_id: str, etype: str, message: str):  # type: ignore[no-untyped-def]
     return RunEvent(seq=seq, type=etype, ts=utcnow(), message=message, stream="stdout", data={})
 
 
-def _validate_run_input(data: dict[str, Any]) -> None:
+def _validate_run_input(data: dict[str, Any], allowed_roots: list[str] | None = None) -> None:
     repo = (data.get("repository") or "").strip()
     if repo:
-        ok, msg = validate_repo_path(repo, _app_roots())
+        ok, msg = validate_repo_path(repo, allowed_roots or _app_roots())
         if not ok:
             raise _err(400, "BAD_REQUEST", f"Repository path rejected: {msg}")
     if data.get("max_attempts", 1) < 1 or data.get("max_attempts", 1) > 10:
@@ -2336,8 +2465,8 @@ def _validate_run_input(data: dict[str, Any]) -> None:
 
 
 def _app_roots() -> list[str]:
-    # Permissive for mock/demo but still blocks traversal & filesystem roots.
-    return ["/srv/sklab/repos", "/home/sklab/projects", "/tmp", ".", "/"]
+    # Development fallback. Production requests pass configured roots explicitly.
+    return ["/srv/sklab/repos", "/home/sklab/projects", "/tmp", "."]
 
 
 def _err(status: int, code: str, message: str) -> Any:

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ActionButton, Empty, ErrorNote, Loading } from "@/components/Ops";
+import Link from "next/link";
 
 export default function ProvidersPage() {
   const [providers, setProviders] = useState<Array<Record<string, unknown>>>([]);
@@ -11,12 +12,14 @@ export default function ProvidersPage() {
   const [err, setErr] = useState<unknown>("");
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState("");
+  const [agents, setAgents] = useState<Array<Record<string, unknown>>>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setErr("");
     try {
       setProviders(await api<Array<Record<string, unknown>>>("/api/providers"));
+      setAgents(await api<Array<Record<string, unknown>>>("/api/agents"));
     } catch (e) {
       setErr(e);
     } finally {
@@ -60,7 +63,7 @@ export default function ProvidersPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Providers</h1>
+        <div><p className="eyebrow">CONNECTIONS / AGENT READINESS</p><h1 className="mt-1 text-2xl font-bold">Providers</h1></div>
         <ActionButton label="Refresh" onRun={load} />
       </div>
       {err ? <ErrorNote error={err} onRetry={load} /> : null}
@@ -85,6 +88,19 @@ export default function ProvidersPage() {
           ))}
         </ul>
       )}
+      <section className="term-frame p-4" aria-label="Agent readiness">
+        <div className="flex items-center justify-between"><h2 className="font-semibold">Agent readiness</h2><Link href="/agents" className="text-xs text-cyan-300 underline">Open agent details</Link></div>
+        {agents.length === 0 ? <p className="mt-3 text-sm text-zinc-500">No adapter catalog returned.</p> : (
+          <ul className="mt-3 grid gap-2 md:grid-cols-2">
+            {agents.map((agent) => {
+              const installed = Boolean(agent.installed);
+              const authenticated = Boolean(agent.auth_ready);
+              const state = !installed ? "NOT_INSTALLED" : !authenticated ? "NOT_AUTHENTICATED" : String(agent.status || "AVAILABLE");
+              return <li key={String(agent.id)} className="border border-zinc-800 p-3 text-sm"><div className="flex items-center justify-between"><Link href={`/agents/${String(agent.id)}`} className="mono text-cyan-300 underline">{String(agent.id)}</Link><StatusBadge status={state} /></div><div className="mono mt-1 text-xs text-zinc-500">installed={String(installed)} · authenticated={String(authenticated)} · version={String(agent.version || "—")}</div><p className="mt-2 text-xs text-zinc-400">{state === "NOT_INSTALLED" ? "Install the supported CLI on the workstation." : state === "NOT_AUTHENTICATED" ? "Authenticate using the CLI's native login flow." : "Available for task routing."}</p></li>;
+            })}
+          </ul>
+        )}
+      </section>
       <form onSubmit={submit} className="space-y-2 rounded border border-zinc-800 p-3 text-sm" data-testid="provider-form">
         <h2 className="font-semibold">Add API-key provider</h2>
         <label className="block">

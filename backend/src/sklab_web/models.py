@@ -149,6 +149,15 @@ class RepoSummary(BaseModel):
     context_status: str = "UNKNOWN"
 
 
+class RepoCloneRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=2048)
+    destination: str | None = Field(default=None, max_length=80)
+
+
+class RepoOpenRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=4096)
+
+
 class AgentSummary(BaseModel):
     id: str
     installed: bool = False
@@ -416,6 +425,11 @@ class ContractRemediationRequest(BaseModel):
 
 class ProtocolCreateRequest(BaseModel):
     id: str = Field(min_length=1, max_length=64)
+
+
+class ProtocolImportRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    files: dict[str, str] = Field(default_factory=dict)
 
 
 class EconomicRequest(BaseModel):

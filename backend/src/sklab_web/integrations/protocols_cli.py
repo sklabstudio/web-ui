@@ -9,6 +9,7 @@ internals cross the boundary).
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,8 @@ from sklab_web.integrations.cli import (
 
 CLI = "sklab-protocol"
 ROOT_ENV = "SKLAB_PROTOCOLS_ROOT"
+MAX_SOURCE_CHARS = 256_000
+_SOL_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.sol")
 
 
 def _root(pid: str) -> str:
@@ -71,6 +74,56 @@ def project_create(pid: str) -> dict[str, Any]:
     return (
         {"id": pid, "ok": True, "init": data} if isinstance(data, dict) else {"id": pid, "ok": True}
     )
+
+
+def project_import(pid: str, files: dict[str, str]) -> dict[str, Any]:
+    """Initialize a local protocol workspace and import bounded Solidity files."""
+    require_id(pid, "protocol")
+    if not files:
+        raise CliError("BAD_REQUEST", "no Solidity source files provided")
+    base_env = os.environ.get(ROOT_ENV, "").strip()
+    if not base_env:
+        raise CliError("MODULE_UNAVAILABLE", "SKLAB_PROTOCOLS_ROOT is not configured")
+    base = Path(base_env).expanduser().resolve()
+    dest = (base / pid).resolve()
+    if base not in dest.parents:
+        raise CliError("BAD_REQUEST", "invalid protocol id")
+    if dest.exists():
+        raise CliError("BAD_REQUEST", "protocol project already exists")
+    if not cli_available(CLI):
+        raise CliError("MODULE_NOT_INSTALLED", "sklab-protocol CLI not available")
+    dest.mkdir(parents=True, exist_ok=False)
+    try:
+        run_cli_json(
+            CLI,
+            ["init", str(dest), "--protocol-id", pid, "--json"],
+            timeout=60.0,
+            cwd=str(base),
+        )
+        src_dir = dest / "src"
+        src_dir.mkdir()
+        written: list[str] = []
+        for name, content in files.items():
+            if not _SOL_RE.fullmatch(name or ""):
+                raise CliError("BAD_REQUEST", f"invalid Solidity filename: {name}")
+            if len(content or "") > MAX_SOURCE_CHARS:
+                raise CliError("BAD_REQUEST", f"source too large: {name}")
+            target = (src_dir / name).resolve()
+            if src_dir not in target.parents:
+                raise CliError("BAD_REQUEST", f"invalid filename: {name}")
+            target.write_text(content, encoding="utf-8")
+            written.append(f"src/{name}")
+    except CliError:
+        import shutil
+
+        shutil.rmtree(dest, ignore_errors=True)
+        raise
+    except Exception as exc:
+        import shutil
+
+        shutil.rmtree(dest, ignore_errors=True)
+        raise CliError("MODULE_UNAVAILABLE", f"protocol import failed: {exc}")
+    return {"id": pid, "ok": True, "files": written}
 
 
 def build_ir(pid: str) -> Any:

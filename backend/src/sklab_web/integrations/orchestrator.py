@@ -325,7 +325,13 @@ def live_agents() -> list[dict[str, Any]] | None:
                 "sessions": False,
                 "resume": bool(getattr(a, "supports_resume", False)),
                 "streaming": True,
-                "status": "READY" if getattr(a, "installed", False) else "UNAVAILABLE",
+                "status": (
+                    "NOT_INSTALLED"
+                    if not getattr(a, "installed", False)
+                    else "NOT_AUTHENTICATED"
+                    if not getattr(a, "auth_ready", False)
+                    else "READY"
+                ),
                 "cost_class": str(getattr(a, "cost_class", "unknown")),
                 "paid": bool(getattr(a, "paid", False)),
                 "live": True,

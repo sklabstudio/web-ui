@@ -15,7 +15,7 @@ function Form() {
   const [providers, setProviders] = useState<Array<Record<string, unknown>>>([]);
   const [skills, setSkills] = useState<Array<Record<string, unknown>>>([]);
   const [form, setForm] = useState({
-    repository: params.get("repo") || "/srv/sklab/repos/demo",
+    repository: params.get("repo") || "",
     task: "",
     agent: "",
     model: "",
@@ -28,18 +28,17 @@ function Form() {
     reprobox: true,
     verification: true,
   });
-  const [repoId, setRepoId] = useState("demo");
   const [ctx, setCtx] = useState<Record<string, unknown> | null>(null);
   const [resolved, setResolved] = useState<Record<string, unknown> | null>(null);
   const [plan, setPlan] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<unknown>("");
-  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     api<Array<Record<string, unknown>>>("/api/repos").then((r) => {
       setRepos(r);
-      const match = r.find((x) => String(x.path) === (params.get("repo") || ""));
-      if (match) setRepoId(String(match.id));
+      if (!params.get("repo") && r[0]) {
+        setForm((f) => ({ ...f, repository: String(r[0].path) }));
+      }
     }).catch(() => {});
     api<Array<Record<string, unknown>>>("/api/agents").then(setAgents).catch(() => {});
     api<Array<Record<string, unknown>>>("/api/providers").then(setProviders).catch(() => {});
@@ -51,7 +50,6 @@ function Form() {
 
   async function inspectContext() {
     setError("");
-    setNotice("");
     try {
       const c = await api<Record<string, unknown>>("/api/repos/context", {
         method: "POST",
@@ -78,7 +76,6 @@ function Form() {
 
   async function doPlan() {
     setError("");
-    setNotice("");
     try {
       const p = await api<Record<string, unknown>>("/api/runs/plan", {
         method: "POST",
@@ -108,16 +105,29 @@ function Form() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">New Task</h1>
+      <div className="term-frame p-4">
+        <p className="eyebrow">WORKSPACE / TASK BUILDER</p>
+        <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">New Task</h1>
+            <p className="mt-1 text-sm text-zinc-400">Select a real workspace, preview the execution plan, then launch.</p>
+          </div>
+          <Link href="/repositories" className="ops-button rounded border border-zinc-700 px-3 py-1 text-sm">Manage workspaces</Link>
+        </div>
+      </div>
       {noAgents && (
-        <p role="note" className="rounded border border-amber-700 p-2 text-sm text-amber-300">
+        <p role="note" className="rounded border border-amber-700 p-3 text-sm text-amber-300">
           No usable agents installed — planning will report AGENT_UNAVAILABLE honestly. Install an
           agent (see Agents) or use mock mode for trials.
         </p>
       )}
       {error ? <ErrorNote error={error} onRetry={doPlan} /> : null}
-      {notice && <p className="text-sm text-zinc-400">{notice}</p>}
 
+      <section className="term-frame space-y-3 p-4" aria-label="Workspace selection">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-semibold">1. Select workspace</h2>
+        <span className="eyebrow">repo-scoped</span>
+      </div>
       <label className="block text-sm">
         Repository
         <select
@@ -125,19 +135,21 @@ function Form() {
           onChange={(e) => {
             set("repository", e.target.value);
             const m = repos.find((x) => String(x.path) === e.target.value);
-            if (m) setRepoId(String(m.id));
           }}
           className="mt-1 block w-full rounded bg-zinc-900 p-2"
           aria-label="Repository"
         >
+          <option value="">select a managed repository</option>
           {repos.map((r) => (
             <option key={String(r.id)} value={String(r.path)}>{String(r.path)}</option>
           ))}
-          <option value={form.repository}>{form.repository}</option>
+          {form.repository && !repos.some((r) => String(r.path) === form.repository) ? (
+            <option value={form.repository}>{form.repository}</option>
+          ) : null}
         </select>
       </label>
       <label className="block text-sm">
-        ...or custom path under allowed roots
+        Or open an existing path under allowed roots
         <input
           value={form.repository}
           onChange={(e) => set("repository", e.target.value)}
@@ -146,13 +158,15 @@ function Form() {
           placeholder="/srv/sklab/repos/my-project"
         />
       </label>
-      {repos.length === 0 && (
+      {repos.length === 0 ? (
         <p className="text-xs text-zinc-500">
-          No repositories discovered under allowed roots — enter a custom path above.
+          &gt; No managed repositories. <Link href="/repositories" className="text-cyan-300 underline">Clone or open one first.</Link>
         </p>
+      ) : (
+        <p className="text-xs text-zinc-500">{repos.length} managed workspace{repos.length === 1 ? "" : "s"} discovered. Refresh from Repos.</p>
       )}
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <ActionButton label="Inspect RepoContext" onRun={inspectContext} disabledReason={!form.task && !repoId ? "pick a repository" : ""} />
+        <ActionButton label="Inspect RepoContext" onRun={inspectContext} disabledReason={!form.repository ? "pick a repository" : ""} />
         {ctx && (
           <span className="mono text-xs text-zinc-400">
             fingerprint={String(ctx.fingerprint || ctx.context_fingerprint || "—")}
@@ -170,7 +184,10 @@ function Form() {
           />
         </section>
       )}
+      </section>
 
+      <section className="term-frame space-y-3 p-4" aria-label="Execution definition">
+      <h2 className="font-semibold">2. Define task</h2>
       <label className="block text-sm">
         Task
         <textarea
@@ -182,7 +199,10 @@ function Form() {
           aria-label="Task"
         />
       </label>
+      </section>
 
+      <section className="term-frame space-y-3 p-4" aria-label="Execution policy">
+      <h2 className="font-semibold">3. Execution policy</h2>
       <div className="grid gap-2 text-sm md:grid-cols-3">
         <label className="block">
           Agent
@@ -265,10 +285,17 @@ function Form() {
       ) : (
         skills.length === 0 && <Empty what="skills loaded" />
       )}
+      </section>
 
-      <div className="flex gap-2">
+      <div className="term-frame flex flex-wrap items-center justify-between gap-3 p-4">
+        <div>
+          <div className="eyebrow">4. REVIEW AND EXECUTE</div>
+          <p className="mt-1 text-xs text-zinc-500">Planning never spends paid budget. Run starts only after preview.</p>
+        </div>
+        <div className="flex gap-2">
         <ActionButton label="Plan" kind="primary" onRun={doPlan} disabledReason={!form.task ? "enter a task first" : ""} />
         <ActionButton label="Run" onRun={doRun} disabledReason={!plan ? "preview plan first" : ""} />
+        </div>
       </div>
       {plan && <PlanPreview plan={plan} />}
       {plan && (plan as { run_id?: string }).run_id && (

@@ -8,6 +8,7 @@ export interface ReportRef {
   title: string;
   created_at?: string;
   artifact_id?: string;
+  content?: string;
 }
 
 export function ReportViewer({ reports }: { reports: ReportRef[] }) {
@@ -28,6 +29,10 @@ export function ReportViewer({ reports }: { reports: ReportRef[] }) {
     } catch (e) {
       setOpen((o) => ({ ...o, [id]: `Could not load artifact: ${String(e)}` }));
     }
+  }
+
+  function viewContent(id: string, content: string) {
+    setOpen((o) => ({ ...o, [id]: content.slice(0, 8000) }));
   }
 
   async function copySummary(r: ReportRef) {
@@ -53,7 +58,14 @@ export function ReportViewer({ reports }: { reports: ReportRef[] }) {
               </div>
             </div>
             <div className="flex gap-2 text-xs">
-              {r.artifact_id ? (
+              {r.content ? (
+                <button
+                  onClick={() => viewContent(r.id, r.content as string)}
+                  className="mono rounded border border-zinc-700 px-2 py-1 text-cyan-300"
+                >
+                  {open[r.id] ? "Hide" : "View"}
+                </button>
+              ) : r.artifact_id ? (
                 <>
                   <button
                     onClick={() => view(r.id, r.artifact_id as string)}

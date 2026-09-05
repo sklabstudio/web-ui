@@ -128,6 +128,11 @@ def test_contracts_write_ops_mock() -> None:
 def test_protocols_write_ops_mock() -> None:
     c = make_client()
     assert c.post("/api/protocols", json={"id": "proto-t1"}).json()["id"] == "proto-t1"
+    imported = c.post(
+        "/api/protocols/import",
+        json={"id": "proto-t2", "files": {"Protocol.sol": "contract Protocol {}"}},
+    )
+    assert imported.json()["ok"] is True
     assert "map" in c.post("/api/protocols/proto-demo/map", json={}).json()
     assert "ir" in c.post("/api/protocols/proto-demo/ir", json={}).json()
     assert "specs" in c.post("/api/protocols/proto-demo/specs", json={}).json()

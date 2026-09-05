@@ -50,7 +50,7 @@ export default function AgentsPage() {
               <Link href={`/agents/${String(a.id)}`} className="mono font-semibold text-cyan-300 underline">
                 {String(a.id)}
               </Link>{" "}
-              <StatusBadge status={String(a.status)} />
+              <StatusBadge status={!a.installed ? "NOT_INSTALLED" : !a.auth_ready ? "NOT_AUTHENTICATED" : String(a.status)} />
               <div className="mono text-xs text-zinc-500">
                 installed={String(a.installed)} · v={String(a.version)} · auth={String(a.auth_ready)}
                 {a.live ? " · live" : ""}
@@ -59,6 +59,9 @@ export default function AgentsPage() {
               <div className="mono text-xs text-zinc-600">
                 cost={String(a.cost_class || "unknown")} · resume={String(a.resume)} · models={String(a.supports_model_selection)}
               </div>
+              <p className="mt-2 text-xs text-zinc-400">
+                {!a.installed ? "Install the supported executable, then refresh." : !a.auth_ready ? "Use the official CLI login flow, then refresh." : "Ready for browser task routing."}
+              </p>
             </li>
           ))}
         </ul>

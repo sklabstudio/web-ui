@@ -19,7 +19,7 @@ export default function SecurityPage() {
   const [apiMap, setApiMap] = useState<Record<string, unknown>[]>([]);
   const [findings, setFindings] = useState<SharedFinding[]>([]);
   const [sims, setSims] = useState<Record<string, unknown>[]>([]);
-  const [reports, setReports] = useState<{ id: string; kind: string; title: string; artifact_id?: string }[]>([]);
+  const [reports, setReports] = useState<{ id: string; kind: string; title: string; artifact_id?: string; content?: string }[]>([]);
   const [browser, setBrowser] = useState<Record<string, unknown>>({});
   const [err, setErr] = useState<unknown>("");
   const [out, setOut] = useState("");
@@ -336,7 +336,16 @@ export default function SecurityPage() {
 
       {tab === "Reports" && (
         <section aria-label="Reports" className="space-y-3">
-          <ActionButton label="Generate report" onRun={() => runOp("Report", () => api(`/api/security/engagements/${engId}/report`, { method: "POST", body: "{}" }).then(async (r) => { setReports(await api<typeof reports>(`/api/security/reports`).catch(() => reports)); return r; }))} disabledReason={unavailable ? "module not installed" : ""} />
+          <ActionButton label="Generate report" onRun={() => runOp("Report", async () => {
+            const result = await api<Record<string, unknown>>(`/api/security/engagements/${engId}/report`, { method: "POST", body: "{}" });
+            const returned = Array.isArray(result.reports) ? result.reports.filter((r): r is { id: string; kind: string; title: string; artifact_id?: string } => Boolean(r && typeof r === "object" && "id" in r)) : [];
+            if (returned.length) {
+              setReports(returned);
+            } else {
+              setReports([{ id: `${engId}-report`, kind: "json", title: `AppSec report (${engId})`, content: JSON.stringify(result, null, 2) }]);
+            }
+            return result;
+          })} disabledReason={unavailable ? "module not installed" : ""} />
           <ReportViewer reports={reports} />
           <p className="mt-2 text-xs text-zinc-500">Safe artifact IDs only; no filesystem paths.</p>
         </section>

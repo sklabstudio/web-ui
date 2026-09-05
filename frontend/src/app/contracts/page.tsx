@@ -71,7 +71,9 @@ export default function ContractsPage() {
   const run = (kind: string) => runOp(kind, "POST", `/api/contracts/projects/${pid}/${kind}`);
   const inventory = (detail?.inventory || []) as Record<string, unknown>[];
   const unavailable = !status || String(status.state) === "NOT_INSTALLED";
+  const isMock = Boolean(status?.mock);
   const showOut = out ? JSON.stringify(out, null, 2).slice(0, 4000) : "";
+  const graph = (out?.graph as Record<string, unknown> | undefined) || out || {};
 
   return (
     <div className="space-y-4">
@@ -241,7 +243,7 @@ export default function ContractsPage() {
             setOut(g);
             setOutLabel("authority graph");
           }} />
-          <GraphView title="Authority graph" nodes={(out?.nodes as string[]) || ["Owner", "Keeper", "DemoVault", "DemoToken"]} edges={((out?.edges as string[][]) || [["Owner", "upgrade"], ["Owner", "pause"], ["Owner", "mint"], ["Keeper", "pause"]]).map((e) => ({ from: e[0], to: e[1] }))} />
+           <GraphView title="Authority graph" nodes={(graph.nodes as string[]) || []} edges={((graph.edges as string[][]) || []).map((e) => ({ from: e[0], to: e[1] }))} />
         </section>
       )}
       {tab === "Standards" && (
@@ -252,12 +254,12 @@ export default function ContractsPage() {
       {tab === "Upgrades" && (
         <section className="rounded border border-zinc-800 p-4 text-sm">
           <ActionButton label="Run upgrade review" onRun={() => runOp("upgrade-review", "POST", `/api/contracts/projects/${pid}/upgrade-review`)} />
-          {showOut ? <pre className="mono mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-xs">{showOut}</pre> : (
-            <>
-              <p className="mt-2">Verdict: <StatusBadge status="REVIEW_REQUIRED" /></p>
-              <ul className="mt-2 text-xs text-zinc-400"><li>storage: no collision</li><li>ABI: 1 added event</li><li>authorities: unchanged</li></ul>
-            </>
-          )}
+           {showOut ? <pre className="mono mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-xs">{showOut}</pre> : isMock ? (
+             <>
+               <p className="mt-2">Verdict: <StatusBadge status="REVIEW_REQUIRED" /></p>
+               <ul className="mt-2 text-xs text-zinc-400"><li>storage: no collision</li><li>ABI: 1 added event</li><li>authorities: unchanged</li></ul>
+             </>
+           ) : <p className="mt-2 text-xs text-zinc-500">No upgrade review has run for this project.</p>}
           <div className="mt-2 flex flex-wrap gap-2">
             <ActionButton label="Storage layout" onRun={async () => { const r = await api(`/api/contracts/projects/${pid}/storage`); setOut(r as Record<string, unknown>); setOutLabel("storage"); }} />
             <ActionButton label="ABI diff" onRun={async () => { const r = await api(`/api/contracts/projects/${pid}/abi-diff`); setOut(r as Record<string, unknown>); setOutLabel("abi-diff"); }} />
@@ -277,7 +279,8 @@ export default function ContractsPage() {
       {tab === "Reports" && (
         <section className="space-y-2">
           <ActionButton label="Generate report" onRun={() => runOp("report", "POST", `/api/contracts/projects/${pid}/report`)} />
-          <ReportViewer reports={((out?.reports as { id: string; kind: string; title: string; artifact_id?: string }[]) || [{ id: "ct-rep-001", kind: "markdown", title: "Contract report (fixture)", artifact_id: "artifact-rep-ct-001" }])} />
+           <ReportViewer reports={((out?.reports as { id: string; kind: string; title: string; artifact_id?: string; content?: string }[]) || (isMock ? [{ id: "ct-rep-001", kind: "markdown", title: "Contract report (fixture)", artifact_id: "artifact-rep-ct-001" }] : []))} />
+           {out && !Array.isArray(out?.reports) ? <pre className="mono max-h-64 overflow-auto whitespace-pre-wrap text-xs">{showOut}</pre> : null}
         </section>
       )}
       {!["Analysis", "Tests", "Fuzz", "Invariants", "Upgrades", "Gas", "Reports"].includes(tab) && showOut && (
