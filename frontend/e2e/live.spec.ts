@@ -55,4 +55,27 @@ test.describe("live VPS smoke", () => {
     await page.getByRole("button", { name: "Plan", exact: true }).click();
     await expect(page.getByText(/AGENT_UNAVAILABLE|Plan preview/).first()).toBeVisible({ timeout: 60000 });
   });
+
+  test("no secret material in DOM, storage or console", async ({ page }) => {
+    const consoleText: string[] = [];
+    page.on("console", (m) => consoleText.push(m.text()));
+    await page.goto(`${URL}login`);
+    await page.getByLabel("Token").fill(TOKEN);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 30000 });
+    let combined = "";
+    for (const path of ["", "security", "contracts", "protocols", "runs", "providers", "settings"]) {
+      await page.goto(`${URL}${path}`);
+      await page.waitForTimeout(1500);
+      combined += await page.content();
+      combined += await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
+    }
+    combined += consoleText.join("\n");
+    for (const needle of ["sk-live", "PRIVATE_KEY", "client-secret", "rpc-key", "Bearer eyJ", "api_key=", "password="]) {
+      expect(combined).not.toContain(needle);
+    }
+    // session cookie must be HttpOnly: invisible to page JS
+    const cookies = await page.evaluate(() => document.cookie);
+    expect(cookies).not.toContain("sklab_session");
+  });
 });

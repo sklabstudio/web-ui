@@ -17,7 +17,7 @@ export default defineConfig({
     { name: "setup", testMatch: /auth\.setup\.ts/ },
     {
       name: "mock",
-      testMatch: /(run|v02|coding|appsec|contracts|protocols|run-controls|ops)\.spec\.ts/,
+      testMatch: /(run|v02|coding|appsec|contracts|protocols|run-controls|ops|responsive)\.spec\.ts/,
       dependencies: ["setup"],
       use: { storageState: "./e2e/.auth.json" },
     },
