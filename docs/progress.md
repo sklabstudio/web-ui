@@ -28,4 +28,4 @@
     interactive graphs, skills/providers/agents/modules/settings operations
   - [x] Normalized error UX + loading/empty/disabled states; CSP hydration fix
   - [x] Frontend (20) / backend (37) / E2E (13 mock + live smoke) tests, prod build green
-  - [ ] Live VPS deploy + URL verification (in progress)
+  - [x] Live VPS deploy + URL verification: 33/33 API checks, 5/5 browser checks, CI green
