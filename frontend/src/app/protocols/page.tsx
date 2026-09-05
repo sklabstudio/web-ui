@@ -20,6 +20,7 @@ export default function ProtocolsPage() {
   const [msg, setMsg] = useState("");
   const [createId, setCreateId] = useState("");
   const [scenario, setScenario] = useState("price-drop");
+  const [uv, setUv] = useState({ old: "", new: "" });
 
   const load = useCallback(async () => {
     setErr("");
@@ -218,8 +219,16 @@ export default function ProtocolsPage() {
       )}
       {tab === "Upgrades" && (
         <section className="space-y-2 rounded border border-zinc-800 p-4 text-sm">
-          <div className="flex flex-wrap gap-2">
-            <ActionButton label="Upgrade review" onRun={() => act("upgrade-review", "POST", `/api/protocols/${pid}/upgrade-review`)} disabledReason={unavailable ? "module not installed" : ""} />
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-xs">
+              Old version/path
+              <input value={uv.old} onChange={(e) => setUv({ ...uv, old: e.target.value })} className="mono ml-2 rounded bg-zinc-900 px-2 py-1" aria-label="Old version" placeholder="v1 (required live)" />
+            </label>
+            <label className="text-xs">
+              New version/path
+              <input value={uv.new} onChange={(e) => setUv({ ...uv, new: e.target.value })} className="mono ml-2 rounded bg-zinc-900 px-2 py-1" aria-label="New version" placeholder="v2 (required live)" />
+            </label>
+            <ActionButton label="Upgrade review" onRun={() => act("upgrade-review", "POST", `/api/protocols/${pid}/upgrade-review`, uv)} disabledReason={unavailable ? "module not installed" : ""} />
             <ActionButton label="Change impact" onRun={() => act("change-impact", "POST", `/api/protocols/${pid}/regression`)} disabledReason={unavailable ? "module not installed" : ""} />
           </div>
           <p>Verdict: <StatusBadge status={String((d.upgrade as Record<string, unknown> | undefined)?.verdict || "REVIEW_REQUIRED")} /></p>

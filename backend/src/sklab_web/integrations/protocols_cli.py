@@ -193,8 +193,14 @@ def historical_regression(pid: str) -> Any:
     return _run(pid, ["historical-regression"], timeout=600.0)
 
 
-def upgrade_review(pid: str) -> Any:
-    return _run(pid, ["upgrade-review"], timeout=300.0)
+def upgrade_review(pid: str, old: str = "", new: str = "") -> Any:
+    old, new = (old or "").strip()[:128], (new or "").strip()[:128]
+    if not old or not new:
+        raise CliError(
+            "BAD_REQUEST",
+            "upgrade-review compares two versions: provide old and new (paths or refs).",
+        )
+    return _run(pid, ["upgrade-review", old, new], timeout=300.0)
 
 
 def change_impact(pid: str) -> Any:

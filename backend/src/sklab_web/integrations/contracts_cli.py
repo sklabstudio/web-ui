@@ -185,11 +185,18 @@ def graph_for_root(pid: str, kind: str = "authority") -> dict[str, Any]:
     root = _root(pid)
     if not cli_available(CLI):
         raise CliError("MODULE_NOT_INSTALLED", "sklab-contract CLI not available")
-    for argv in (["graph", kind, "--json"], ["graph", "--json"]):
+    # graph [path] --format json|dot|mermaid (no --json flag on this command)
+    for argv in (["graph", "--format", "json"], ["graph", root, "--format", "json"]):
         try:
             data = run_cli_json(CLI, argv, timeout=120.0, cwd=root)
             if isinstance(data, dict):
-                return data
+                if kind != "authority" and isinstance(data.get("graphs"), dict):
+                    sub = data["graphs"].get(kind)
+                    if sub is not None:
+                        return {"kind": kind, "graph": sub, "live": True}
+                return dict(data, live=True)
+            if isinstance(data, list):
+                return {"kind": kind, "graph": data, "live": True}
         except CliError:
             continue
     raise CliError("MODULE_UNAVAILABLE", "graph export failed")

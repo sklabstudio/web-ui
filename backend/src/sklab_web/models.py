@@ -424,6 +424,11 @@ class EconomicRequest(BaseModel):
     runs: int = 20
 
 
+class UpgradeReviewRequest(BaseModel):
+    old: str = ""
+    new: str = ""
+
+
 class AuditEntry(BaseModel):
     ts: str
     action: str

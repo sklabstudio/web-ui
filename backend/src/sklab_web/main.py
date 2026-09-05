@@ -51,6 +51,7 @@ from sklab_web.models import (
     SimulationRequest,
     SkillAutoMode,
     SystemResponse,
+    UpgradeReviewRequest,
     VersionResponse,
 )
 from sklab_web.pathsafe import validate_repo_path
@@ -2246,11 +2247,18 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
         return out if isinstance(out, dict) else {"result": out}
 
     @app.post("/api/protocols/{pid}/upgrade-review")
-    def protocol_upgrade(pid: str, request: Request) -> dict[str, Any]:
+    def protocol_upgrade(pid: str, body: UpgradeReviewRequest, request: Request) -> dict[str, Any]:
         guard(request)
-        out = _proto_action(
-            pid, "upgrade_review", {"id": pid, "verdict": "REVIEW_REQUIRED", "mock": True}
-        )
+        st = _require_protocols()
+        if st.get("mock"):
+            return {"id": pid, "verdict": "REVIEW_REQUIRED", "mock": True}
+        from sklab_web.integrations import protocols_cli as _pcl
+
+        try:
+            out = _pcl.upgrade_review(pid, body.old, body.new)
+        except CliError as exc:
+            raise _cli_err(exc)
+        audit("protocol upgrade review", pid)
         return out if isinstance(out, dict) else {"result": out}
 
     @app.post("/api/protocols/{pid}/deployment-guard")
