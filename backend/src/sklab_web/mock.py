@@ -80,6 +80,7 @@ class MockStore:
              "default_model": "claude-3-5-sonnet", "last_validated": None, "enabled": True},
         ]
         self._seed_history()
+        self._sec_engs: list[dict[str, Any]] | None = None
 
     # ---------- seed ----------
     def _seed_history(self) -> None:
@@ -167,19 +168,35 @@ class MockStore:
         return rec
 
     def _simulate(self, run_id: str, scenario: str) -> None:
+        import os as _os
+
+        try:
+            step = max(0.005, float(_os.environ.get("SKLAB_MOCK_STEP_MS", "50")) / 1000.0)
+        except ValueError:
+            step = 0.05
         script = list(MOCK_RUN_SCRIPT)
         if scenario == "fail":
             script = [s for s in script if s[0] not in ("RETRY_DECIDED",)] + [
                 ("RUN_FAILED", "stdout", "Run failed: verification failed")]
         for etype, stream, msg in script:
+            if self._is_cancelled(run_id):
+                return
             if scenario == "blocked" and etype == "ATTEMPT_STARTED":
                 self._push(run_id, "RUN_FAILED", "stderr", "Blocked: provider quota exhausted")
                 self._set(run_id, status="BLOCKED")
                 return
-            time.sleep(0.05)
+            time.sleep(step)
+            if self._is_cancelled(run_id):
+                return
             self._push(run_id, etype, stream, msg)
             self._apply_progress(run_id, etype)
-        self._finalize(run_id, scenario)
+        if not self._is_cancelled(run_id):
+            self._finalize(run_id, scenario)
+
+    def _is_cancelled(self, run_id: str) -> bool:
+        with self._lock:
+            rec = self.runs.get(run_id)
+            return bool(rec) and rec.get("status") == "CANCELLED"
 
     def _push(self, run_id: str, etype: str, stream: str, message: str) -> int:
         with self._lock:
@@ -316,12 +333,23 @@ class MockStore:
         }
 
     def security_engagements(self) -> list[dict[str, Any]]:
-        return [{
-            "id": "eng-demo", "name": "Local fixture audit", "status": "ACTIVE",
-            "scope_summary": "2 hosts, 14 routes, roles guest/user/admin",
-            "created_at": "2026-08-01T00:00:00+00:00", "last_run": "2026-09-01T00:00:00+00:00",
-            "finding_count": 3, "report_status": "READY",
-        }]
+        if self._sec_engs is None:
+            self._sec_engs = [{
+                "id": "eng-demo", "name": "Local fixture audit", "status": "ACTIVE",
+                "scope_summary": "2 hosts, 14 routes, roles guest/user/admin",
+                "created_at": "2026-08-01T00:00:00+00:00", "last_run": "2026-09-01T00:00:00+00:00",
+                "finding_count": 3, "report_status": "READY",
+            }]
+        return self._sec_engs
+
+    def add_security_engagement(self, eng: dict[str, Any]) -> dict[str, Any]:
+        engs = [e for e in self.security_engagements() if e["id"] != eng["id"]] + [eng]
+        self._sec_engs = engs
+        return eng
+
+    def reset_ephemeral(self) -> None:
+        """Drop request-created fixtures (fresh app instances start deterministic)."""
+        self._sec_engs = None
 
     def security_traffic(self) -> list[dict[str, Any]]:
         return [

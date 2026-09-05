@@ -17,7 +17,7 @@ test("E2E2 contracts: project → test → fuzz → invariant → upgrade", asyn
   await page.goto("/contracts");
   await expect(page.getByRole("heading", { name: "Contracts" })).toBeVisible();
   await page.getByRole("tab", { name: "Projects" }).click();
-  await expect(page.getByText("demo-token").first()).toBeVisible();
+  await expect(page.getByTestId("project-proj-demo")).toBeVisible();
   await page.getByRole("tab", { name: "Upgrades" }).click();
   await expect(page.getByText("REVIEW_REQUIRED").first()).toBeVisible();
 });

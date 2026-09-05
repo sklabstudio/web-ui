@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.3.0 — operational control center
+
+Browser-operable workflows over the real backend (live-first, mock-fallback, never fake READY):
+
+- AI Workspace: repo select + live RepoContext inspect, agent/provider/model/skill
+  dropdowns from live catalogs, skill resolution preview, execution mode/budget
+  policy, plan-then-run with `run_id`, honest AGENT_UNAVAILABLE when no agent installed
+- Runs: full inspector (facts, live SSE timeline with friendly labels, logs,
+  attempts, verification, patch, warnings) + Cancel/Retry/Resume/Approve/Reject;
+  real persistent OrchestratorService runs in live mode, deterministic simulator in mock
+- AppSec: engagement create/activate/close, browser launch (headed/headless),
+  capture, safe audit, bounded simulations, finding retest, impact, reports
+- Contracts: project create-from-template + .sol import, compile/test/analyze/fuzz/
+  invariants/gas/coverage/graphs/upgrade-review/storage/ABI-diff/threat-model/
+  prepare-fix/verify-fix/report via typed SDK + `--json` CLIs
+- Protocols: project init, IR/map build, spec/invariant derivation, bounded economic
+  simulation + named scenarios, upgrade/change-impact/deployment-guard,
+  regression, assure, verify, live monitor/incidents, reports (simulation only)
+- Skills: search, trust/permissions/risk, task-scoped enable/disable, audit,
+  task-aware resolve, auto mode OFF/SAFE/SMART/FULL (install ≠ global enable)
+- Providers/Agents: live catalogs, zero-cost health (never paid inference), refresh
+- Modules: full 18-module matrix via `sklab status`, per-module details, zero-cost doctor
+- UX: quick-action Home, normalized errors with help + retry, loading/empty/disabled
+  states everywhere, finding actions, report view/copy/download, interactive graphs
+  (zoom/fit/select/search), responsive tables, CSP fixed so the app actually hydrates
+- E2E: Playwright suites A–F against mock (login → verified flows) with webServer
+  harness; live smoke spec for the VPS (LIVE_E2E=1)
+- Tests: backend 37, frontend 20, E2E 13, production build verified
+
 ## 0.2.0
 
 Implemented (public integration foundation; live private wiring is optional):

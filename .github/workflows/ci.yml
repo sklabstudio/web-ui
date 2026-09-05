@@ -37,12 +37,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - working-directory: backend
+        run: pip install -e .
       - working-directory: frontend
         run: |
           npm ci
           npx playwright install --with-deps chromium
-          npm run build
-          npx playwright test || echo "no e2e specs yet (mock suite passes in unit)"
+          SKLAB_BACKEND_URL=http://127.0.0.1:8787 npm run build
+          cp -r .next/static .next/standalone/.next/static
+          cp -r public .next/standalone/public
+          npx playwright test --project=setup --project=mock
   docker:
     runs-on: ubuntu-latest
     steps:

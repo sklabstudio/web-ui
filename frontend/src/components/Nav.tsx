@@ -13,6 +13,7 @@ const LINKS = [
   ["Security", "/security"],
   ["Contracts", "/contracts"],
   ["Protocols", "/protocols"],
+  ["Modules", "/modules"],
   ["Benchmarks", "/benchmarks"],
   ["Prompt Experiments", "/prompt-experiments"],
   ["Settings", "/settings"],

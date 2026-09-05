@@ -36,11 +36,12 @@ CodeTrials / PromptBench. See `docs/architecture.md`.
 
 ## Features
 
-Dashboard (runs + Security/Contracts/Protocols summaries), repos (allowed
-roots only), plan-then-run task flow, live SSE run page, attempts/retry
-evidence, approval gates, verification view, read-only diff viewer, history,
-agents, providers (secret-safe), environments, benchmarks,
-codetrials/promptbench read views, skills foundation, settings.
+Dashboard quick actions, plan-then-run AI workspace with live RepoContext/skills,
+run inspector with SSE timeline + Cancel/Retry/Resume/Approve/Reject, Security
+engagements + safe audits/simulations/retests, Contracts build/test/analyze/fuzz/
+invariants/gas/coverage/upgrade/remediation, Protocols map/specs/simulations/
+assurance, full module matrix + doctor, skills trust + task-scoped enable,
+provider/agent live status with zero-cost health, and settings.
 
 ### Security / Contracts / Protocols (v0.2)
 
@@ -79,9 +80,10 @@ See `docs/integrations.md`, `docs/mock-mode.md`, `docs/demo.md`.
 
 ## Limitations / Roadmap
 
-No direct patch apply, no leaderboard, no Skill Hub auto-install. Security /
-Contracts / Protocols live wiring degrades to typed mocks until optional
-modules are installed locally. See `docs/progress.md`.
+No direct patch apply, no leaderboard, no paid-model execution without approval.
+Live AI execution needs an installed agent (otherwise the UI reports
+AGENT_UNAVAILABLE honestly); deterministic mock mode (`SKLAB_MOCK_MODE=true`)
+covers trials and E2E. See `docs/progress.md`.
 
 ## License
 

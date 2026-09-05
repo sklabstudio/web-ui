@@ -19,7 +19,13 @@ export interface SharedFinding {
   impact?: Record<string, string>;
 }
 
-export function FindingCard({ finding }: { finding: SharedFinding }) {
+export function FindingCard({
+  finding,
+  actions,
+}: {
+  finding: SharedFinding;
+  actions?: React.ReactNode;
+}) {
   const target =
     finding.endpoint || finding.flow || finding.contract || finding.evidence_ref || "—";
   return (
@@ -60,6 +66,7 @@ export function FindingCard({ finding }: { finding: SharedFinding }) {
       {finding.retest_status && (
         <p className="mt-2 text-xs text-zinc-500">Retest: {finding.retest_status}</p>
       )}
+      {actions && <div className="mt-2 flex flex-wrap gap-2 text-xs">{actions}</div>}
     </article>
   );
 }

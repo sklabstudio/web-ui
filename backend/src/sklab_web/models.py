@@ -1,4 +1,5 @@
 """Typed Pydantic schemas for the Web API. Single source of truth for the contract."""
+
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -350,11 +351,77 @@ class SettingsModel(BaseModel):
     auto_push: bool = False
     skill_auto_install: str = "OFF"
     allowed_repo_roots: list[str] = Field(default_factory=list)
+    # v0.3 operational sections (all optional; unknown keys ignored by clients)
+    execution_policy: str = "safe"
+    provider_default: str = ""
+    agent_default: str = ""
+    skill_auto_mode: str = "OFF"
+    appsec_safe_limits: dict[str, Any] = Field(default_factory=dict)
+    contract_tool_preferences: dict[str, Any] = Field(default_factory=dict)
+    protocol_assurance_defaults: dict[str, Any] = Field(default_factory=dict)
+    ui_preferences: dict[str, Any] = Field(default_factory=dict)
 
 
 class LoginRequest(BaseModel):
     password: str | None = None
     token: str | None = None
+
+
+# ---------------- v0.3: operational controls ----------------
+
+
+class SkillAutoMode(BaseModel):
+    mode: str = "OFF"
+
+
+class EngagementCreateRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    name: str = ""
+    target_url: str = ""
+    scope: str = ""
+    trusted_auth_host: str = ""
+    auth_mode: str = "none"
+
+
+class BrowserLaunchRequest(BaseModel):
+    headed: bool = False
+
+
+class CaptureRequest(BaseModel):
+    scenario: str = "normal-api"
+
+
+class SimulationRequest(BaseModel):
+    check: str = ""
+
+
+class RetestRequest(BaseModel):
+    ref: str = ""
+    engagement: str = ""
+
+
+class ContractProjectCreateRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    kind: str = "custom"
+
+
+class ContractImportRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    files: dict[str, str] = Field(default_factory=dict)
+
+
+class ContractRemediationRequest(BaseModel):
+    ref: str = ""
+
+
+class ProtocolCreateRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+
+
+class EconomicRequest(BaseModel):
+    scenario: str = "price-drop"
+    seed: int = 42
+    runs: int = 20
 
 
 class AuditEntry(BaseModel):
@@ -366,11 +433,20 @@ class AuditEntry(BaseModel):
 # ---------------- v0.2: shared + Security / Contracts / Protocols ----------------
 
 FindingStatus = Literal[
-    "OPEN", "CONFIRMED", "LIKELY", "NEEDS_REVIEW", "FIXED",
-    "FIXED_VERIFIED", "ACCEPTED_RISK", "FALSE_POSITIVE", "INCONCLUSIVE",
+    "OPEN",
+    "CONFIRMED",
+    "LIKELY",
+    "NEEDS_REVIEW",
+    "FIXED",
+    "FIXED_VERIFIED",
+    "ACCEPTED_RISK",
+    "FALSE_POSITIVE",
+    "INCONCLUSIVE",
 ]
 ImpactLevel = Literal["NONE", "LOW", "MEDIUM", "HIGH", "UNKNOWN"]
-AssuranceState = Literal["VERIFIED", "PARTIAL", "FAILED", "INCONCLUSIVE", "NOT_TESTED", "NOT_APPLICABLE"]
+AssuranceState = Literal[
+    "VERIFIED", "PARTIAL", "FAILED", "INCONCLUSIVE", "NOT_TESTED", "NOT_APPLICABLE"
+]
 
 
 class FindingModel(BaseModel):

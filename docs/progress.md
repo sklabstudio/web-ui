@@ -20,3 +20,12 @@
 - [x] Real-integration dogfood: typed contracts ready; live wiring pending
   stable local modules (adapters degrade to NOT_INSTALLED, mock verified)
 - [ ] CI green on public repo (verify after push)
+- [x] v0.3.0 operational console:
+  - [x] Live-first wiring: real OrchestratorService runs (persistent store + SSE),
+    live agents/connections/RepoContext/skills, full module matrix + doctor
+  - [x] AppSec/Contracts/Protocols browser write-ops via typed SDK + `--json` CLIs
+  - [x] Run controls (cancel/retry/resume/approve/reject), finding actions, reports,
+    interactive graphs, skills/providers/agents/modules/settings operations
+  - [x] Normalized error UX + loading/empty/disabled states; CSP hydration fix
+  - [x] Frontend (20) / backend (37) / E2E (13 mock + live smoke) tests, prod build green
+  - [ ] Live VPS deploy + URL verification (in progress)
