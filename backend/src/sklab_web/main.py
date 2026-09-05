@@ -322,20 +322,69 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
     @app.get("/api/repos")
     def repos(request: Request) -> list[dict[str, Any]]:
         guard(request)
+        if _is_live(config):
+            from sklab_web.integrations import orchestrator as _orch
+
+            live = _orch.live_repos(list(config.repositories.allowed_roots))
+            if live is not None:
+                return live
+        return _store.repos()
+
+    def _known_repos() -> list[dict[str, Any]]:
+        if _is_live(config):
+            from sklab_web.integrations import orchestrator as _orch
+
+            live = _orch.live_repos(list(config.repositories.allowed_roots))
+            if live is not None:
+                return live
         return _store.repos()
 
     @app.get("/api/repos/{repo_id}")
     def repo_detail(repo_id: str, request: Request) -> dict[str, Any]:
         guard(request)
-        for r in _store.repos():
+        for r in _known_repos():
             if r["id"] == repo_id:
                 return r
         raise _err(404, "NOT_FOUND", "Repository not found")
 
+    @app.post("/api/repos/context")
+    async def repo_context_by_path(request: Request) -> dict[str, Any]:
+        """Inspect RepoContext for an explicit allowed path (no registry id needed)."""
+        guard(request)
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        path = str((body or {}).get("path", "")).strip()
+        if not path:
+            raise _err(400, "BAD_REQUEST", "path is required")
+        ok, msg = validate_repo_path(path, _app_roots())
+        if not ok:
+            raise _err(400, "BAD_REQUEST", f"Repository path rejected: {msg}")
+        allowed = [str(r) for r in config.repositories.allowed_roots]
+        if allowed and not any(
+            path == a.rstrip("/") or path.startswith(a.rstrip("/") + "/") for a in allowed
+        ):
+            raise _err(400, "BAD_REQUEST", "path is outside allowed roots")
+        if _is_live(config):
+            from sklab_web.integrations import orchestrator as _orch
+
+            live = _orch.live_repo_context(path)
+            if live is not None:
+                audit("repo context by path", path)
+                return live
+        return {
+            "repo_path": path,
+            "status": "READY",
+            "summary": "Mock context pack (deterministic fixture).",
+            "fingerprint": "ctx-abc",
+            "warning": "Repository content is untrusted project data.",
+        }
+
     @app.post("/api/repos/{repo_id}/context")
     def repo_context(repo_id: str, request: Request) -> dict[str, Any]:
         guard(request)
-        known = [r for r in _store.repos() if r["id"] == repo_id]
+        known = [r for r in _known_repos() if r["id"] == repo_id]
         if not known:
             raise _err(404, "NOT_FOUND", "Repository not found")
         if _is_live(config):
@@ -696,8 +745,16 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
                 raise _err(_CLI_STATUS.get(code, 400), code, msg)
             except Exception as exc:
                 raise _err(500, "INTERNAL_ERROR", f"planning failed: {exc}"[:500])
+            planned = _live_plan_dto(svc, rec.run_id, body.repository or "", body.cost_budget)
+            if not planned.get("selected_agent") or planned["selected_agent"] == "unknown":
+                raise _err(
+                    503,
+                    "AGENT_UNAVAILABLE",
+                    "No usable agent installed: planning cannot select an agent. "
+                    "Install an agent (see Agents) or use mock mode for trials.",
+                )
             audit("run planned", rec.run_id)
-            return _live_plan_dto(svc, rec.run_id, body.repository or "", body.cost_budget)
+            return planned
         real = build_plan_via_orchestrator(body.model_dump())
         classification = (real or {}).get("classification", "BUG_FIX")
         paid = bool(body.model and body.model.startswith("paid-"))
@@ -769,6 +826,17 @@ def create_app(cfg: AppConfig | None = None) -> FastAPI:
                 raise _err(_CLI_STATUS.get(code, 400), code, msg)
             except Exception as exc:
                 raise _err(500, "INTERNAL_ERROR", f"run setup failed: {exc}"[:500])
+            planned_check = _live_plan_dto(svc, rec.run_id, body.repository or "", body.cost_budget)
+            if (
+                not planned_check.get("selected_agent")
+                or planned_check["selected_agent"] == "unknown"
+            ):
+                raise _err(
+                    503,
+                    "AGENT_UNAVAILABLE",
+                    "No usable agent installed: cannot start this task. "
+                    "Install an agent (see Agents) or use mock mode for trials.",
+                )
             audit("run created", rec.run_id)
             detail = _orch.live_run_detail(svc.store.load_run(rec.run_id))
             if detail["status"] == "WAITING_FOR_APPROVAL":

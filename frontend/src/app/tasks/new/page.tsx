@@ -53,7 +53,10 @@ function Form() {
     setError("");
     setNotice("");
     try {
-      const c = await api<Record<string, unknown>>(`/api/repos/${repoId}/context`, { method: "POST", body: "{}" });
+      const c = await api<Record<string, unknown>>("/api/repos/context", {
+        method: "POST",
+        body: JSON.stringify({ path: form.repository }),
+      });
       setCtx(c);
     } catch (e) {
       setError(e);
@@ -133,6 +136,21 @@ function Form() {
           <option value={form.repository}>{form.repository}</option>
         </select>
       </label>
+      <label className="block text-sm">
+        ...or custom path under allowed roots
+        <input
+          value={form.repository}
+          onChange={(e) => set("repository", e.target.value)}
+          className="mono mt-1 block w-full rounded bg-zinc-900 p-2 text-xs"
+          aria-label="Custom repository path"
+          placeholder="/srv/sklab/repos/my-project"
+        />
+      </label>
+      {repos.length === 0 && (
+        <p className="text-xs text-zinc-500">
+          No repositories discovered under allowed roots — enter a custom path above.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <ActionButton label="Inspect RepoContext" onRun={inspectContext} disabledReason={!form.task && !repoId ? "pick a repository" : ""} />
         {ctx && (
@@ -185,7 +203,7 @@ function Form() {
             <option value="">auto-select</option>
             {providers.map((p) => (
               <option key={String(p.id)} value={String(p.id)}>
-                {String(p.label || p.id)} ({String(p.status)})
+                {String(p.label || p.id)} ({String(p.status)}{p.live === false ? ", stored" : ""})
               </option>
             ))}
           </select>

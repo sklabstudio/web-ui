@@ -403,3 +403,73 @@ def live_skill_resolve(task: str, category: str = "") -> dict[str, Any] | None:
         return SkillHubIntegration.resolve(task, category or None, None, None)
     except Exception:
         return None
+
+
+def live_repos(allowed_roots: list[str]) -> list[dict[str, Any]] | None:
+    """Discover real repositories under allowed roots (read-only listing).
+
+    Returns None when no root is configured/accessible so callers can fall
+    back honestly. Never walks outside the roots; caps entries.
+    """
+    import subprocess as _sp
+
+    from sklab_web.integrations.cli import _augmented_env
+
+    roots = [r for r in (allowed_roots or []) if r]
+    if not roots:
+        return None
+    try:
+        from sklab_orchestrator.integrations import RepoContextIntegration  # type: ignore
+
+        ctx_available = RepoContextIntegration.available()
+    except Exception:
+        ctx_available = False
+    out: list[dict[str, Any]] = []
+    for root in roots:
+        try:
+            base = Path(root).expanduser()
+            if not base.is_dir():
+                continue
+            children = sorted(
+                [p for p in base.iterdir() if p.is_dir() and not p.name.startswith(".")]
+            )
+        except Exception:
+            continue
+        for child in children[:100]:
+            branch: str | None = None
+            dirty = False
+            try:
+                b = _sp.run(
+                    ["git", "-C", str(child), "rev-parse", "--abbrev-ref", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    env=_augmented_env(),
+                )
+                if b.returncode == 0:
+                    branch = b.stdout.strip()[:120] or None
+                s = _sp.run(
+                    ["git", "-C", str(child), "status", "--porcelain"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    env=_augmented_env(),
+                )
+                dirty = bool(s.stdout.strip()) if s.returncode == 0 else False
+            except Exception:
+                pass
+            out.append(
+                {
+                    "id": child.name,
+                    "name": child.name,
+                    "path": str(child),
+                    "branch": branch or "unknown",
+                    "dirty": dirty,
+                    "stack": [],
+                    "last_run_id": None,
+                    "warnings": [],
+                    "context_status": "READY" if ctx_available else "UNAVAILABLE",
+                    "live": True,
+                }
+            )
+    return out

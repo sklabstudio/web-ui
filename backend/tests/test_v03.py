@@ -158,3 +158,7 @@ def test_providers_test_and_repo_context_mock() -> None:
     ctx = c.post("/api/repos/demo/context").json()
     assert ctx["status"] == "READY"
     assert c.post("/api/repos/nope/context").status_code == 404
+    by_path = c.post("/api/repos/context", json={"path": "/srv/sklab/repos/demo"}).json()
+    assert by_path["status"] == "READY"
+    assert c.post("/api/repos/context", json={"path": "/etc/passwd"}).status_code == 400
+    assert c.post("/api/repos/context", json={}).status_code == 400

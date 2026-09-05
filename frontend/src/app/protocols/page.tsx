@@ -126,18 +126,29 @@ export default function ProtocolsPage() {
             <table className="w-full text-left text-xs">
               <thead><tr className="text-zinc-500">{["Asset", "Source", "Destination", "Trigger", "Authority", "Constraint"].map((h) => <th key={h} className="px-2 py-1">{h}</th>)}</tr></thead>
               <tbody>{arr("assets").map((a, i) => (
-                <tr key={i} className="border-t border-zinc-800">{["asset", "source", "destination", "trigger", "authority", "constraint"].map((k) => <td key={k} className="px-2 py-1">{String(a[k])}</td>)}</tr>))}</tbody>
+                <tr key={i} className="border-t border-zinc-800">{["asset", "source", "destination", "trigger", "authority", "constraint"].map((k) => <td key={k} className="px-2 py-1">{String(a[k] ?? "—")}</td>)}</tr>))}</tbody>
             </table>
           )}
         </section>
       )}
       {tab === "Authorities" && (
         <section className="grid gap-2 text-sm">
-          {arr("authorities").map((a, i) => (
-            <div key={i} className="rounded border border-zinc-800 p-3">
-              <strong>{String(a.authority)}</strong> <span className="mono text-xs text-cyan-300">{String(a.capability)} → {String(a.target)}</span>
-              <p className="text-xs text-zinc-500">blast radius {String((a as Record<string, unknown>).blast_radius || "UNKNOWN")} · conf {String(a.confidence)}</p>
-            </div>))}
+          {arr("authorities").map((a, i) => {
+            const who = String(a.authority ?? a.id ?? a.name ?? `authority-${i}`);
+            return (
+              <div key={i} className="rounded border border-zinc-800 p-3">
+                <strong>{who}</strong>{" "}
+                <span className="mono text-xs text-cyan-300">
+                  {String(a.capability ?? a.normalized ?? "")}
+                  {(a.target ? ` → ${String(a.target)}` : "") || ""}
+                </span>
+                <p className="text-xs text-zinc-500">
+                  blast radius {String((a as Record<string, unknown>).blast_radius ?? (a as Record<string, unknown>).reachable ?? "UNKNOWN")} · conf {String(a.confidence ?? "—")}
+                </p>
+                {a.evidence ? <p className="mono mt-1 text-xs text-zinc-500">{String(a.evidence)}</p> : null}
+              </div>
+            );
+          })}
           {arr("authorities").length === 0 && <Empty what="authorities" />}
         </section>
       )}
@@ -147,7 +158,7 @@ export default function ProtocolsPage() {
             <table className="w-full text-left text-xs">
               <thead><tr className="text-zinc-500">{["dependency", "type", "protocol", "role", "trust", "criticality"].map((h) => <th key={h} className="px-2 py-1">{h}</th>)}</tr></thead>
               <tbody>{arr("dependencies").map((x, i) => (
-                <tr key={i} className="border-t border-zinc-800">{["dependency", "type", "protocol", "role", "trust", "criticality"].map((k) => <td key={k} className="px-2 py-1">{String(x[k])}</td>)}</tr>))}</tbody>
+                <tr key={i} className="border-t border-zinc-800">{["dependency", "type", "protocol", "role", "trust", "criticality"].map((k) => <td key={k} className="px-2 py-1">{String(x[k] ?? "—")}</td>)}</tr>))}</tbody>
             </table>
           )}
         </section>
@@ -158,8 +169,8 @@ export default function ProtocolsPage() {
           <div className="grid gap-2">
             {arr("specs").map((s, i) => (
               <div key={i} className="rounded border border-zinc-800 p-3">
-                <p>{String(s.statement)}</p>
-                <p className="mono text-xs text-zinc-500">{String(s.status)} · conf {String(s.confidence)}</p>
+                <p>{String(s.statement ?? s.invariant ?? s.id ?? `spec-${i}`)}</p>
+                <p className="mono text-xs text-zinc-500">{String(s.status ?? s.state ?? "—")} · conf {String(s.confidence ?? "—")}</p>
               </div>))}
             {arr("specs").length === 0 && !showOut && <Empty what="specs" />}
           </div>
@@ -171,8 +182,8 @@ export default function ProtocolsPage() {
           <div className="grid gap-2">
             {arr("invariants").map((s, i) => (
               <div key={i} className="rounded border border-zinc-800 p-3">
-                <p className="mono">{String(s.invariant)}</p>
-                <p className="text-xs"><StatusBadge status={String(s.status)} /> <span className="text-zinc-500">{String(s.source)} · {String(s.tool)}</span></p>
+                <p className="mono">{String(s.invariant ?? s.property ?? s.statement ?? `invariant-${i}`)}</p>
+                <p className="text-xs"><StatusBadge status={String(s.status ?? "UNKNOWN")} /> <span className="text-zinc-500">{String(s.source ?? "—")} · {String(s.tool ?? "")}</span></p>
                 <p className="text-xs text-zinc-500">Fuzz pass ≠ proof.</p>
               </div>))}
             {arr("invariants").length === 0 && !showOut && <Empty what="invariants" />}
@@ -226,17 +237,18 @@ export default function ProtocolsPage() {
         <section className="grid gap-2 text-sm">
           {arr("monitor").map((m, i) => (
             <div key={i} className="rounded border border-zinc-800 p-3">
-              <StatusBadge status={String(m.kind)} /> <span className="text-xs">{String(m.message)}</span>
+              <StatusBadge status={String(m.kind ?? m.severity ?? "UNKNOWN")} />{" "}
+              <span className="text-xs">{String(m.message ?? m.title ?? JSON.stringify(m).slice(0, 200))}</span>
             </div>))}
-          {arr("monitor").length === 0 && !status ? <Loading what="monitor" /> : arr("monitor").length === 0 && <Empty what="alerts" />}
+          {arr("monitor").length === 0 && <Empty what="alerts" />}
         </section>
       )}
       {tab === "Incidents" && (
         <section className="grid gap-2 text-sm">
           {arr("incidents").map((m, i) => (
             <div key={i} className="rounded border border-zinc-800 p-3">
-              <strong>{String(m.title)}</strong>
-              <p className="mono text-xs text-zinc-500">{JSON.stringify(m.timeline)}</p>
+              <strong>{String(m.title ?? m.id ?? `incident-${i}`)}</strong>
+              <p className="mono text-xs text-zinc-500">{String(JSON.stringify(m.timeline ?? m).slice(0, 500))}</p>
             </div>))}
           {arr("incidents").length === 0 && <Empty what="incidents" />}
         </section>

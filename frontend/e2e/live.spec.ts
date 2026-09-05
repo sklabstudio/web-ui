@@ -42,7 +42,7 @@ test.describe("live VPS smoke", () => {
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 30000 });
     await page.goto(`${URL}protocols`);
     await page.getByRole("tab", { name: "Authorities" }).click();
-    await expect(page.getByText("Owner").first()).toBeVisible({ timeout: 60000 });
+    await expect(page.getByText(/authority:mint|FlawedToken/).first()).toBeVisible({ timeout: 60000 });
   });
 
   test("task planning is honest without agents", async ({ page }) => {
@@ -53,6 +53,6 @@ test.describe("live VPS smoke", () => {
     await page.goto(`${URL}tasks/new`);
     await page.getByLabel("Task").fill("live honesty probe");
     await page.getByRole("button", { name: "Plan", exact: true }).click();
-    await expect(page.getByText(/AGENT_UNAVAILABLE|plan-preview/).first()).toBeVisible({ timeout: 60000 });
+    await expect(page.getByText(/AGENT_UNAVAILABLE|Plan preview/).first()).toBeVisible({ timeout: 60000 });
   });
 });

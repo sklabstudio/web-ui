@@ -177,10 +177,10 @@ export default function ContractsPage() {
             <thead><tr className="text-zinc-500">{["Contract", "Source", "Type", "Standard", "Upgradeability", "Authorities", "Functions"].map((h) => <th key={h} className="px-2 py-1">{h}</th>)}</tr></thead>
             <tbody>{inventory.map((c, i) => (
               <tr key={i} className="border-t border-zinc-800">
-                <td className="px-2 py-1">{String(c.name)}</td><td className="mono px-2 py-1">{String(c.source)}</td>
-                <td className="px-2 py-1">{String(c.kind)}</td><td className="px-2 py-1">{String(c.standard)}</td>
-                <td className="px-2 py-1">{String(c.upgradeability)}</td><td className="px-2 py-1">{String((c.authorities as string[])?.join(", "))}</td>
-                <td className="px-2 py-1">{String(c.functions)}</td>
+                <td className="px-2 py-1">{String(c.name ?? `contract-${i}`)}</td><td className="mono px-2 py-1">{String(c.source ?? "—")}</td>
+                <td className="px-2 py-1">{String(c.kind ?? "—")}</td><td className="px-2 py-1">{String(c.standard ?? "—")}</td>
+                <td className="px-2 py-1">{String(c.upgradeability ?? "—")}</td><td className="px-2 py-1">{String(((c.authorities as string[]) || []).join(", ") || "—")}</td>
+                <td className="px-2 py-1">{String(c.functions ?? "—")}</td>
               </tr>))}</tbody>
           </table>
           {inventory.length === 0 && <Empty what="contracts in inventory" />}
